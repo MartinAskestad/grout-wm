@@ -1,9 +1,17 @@
 use std::io::Error;
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
 
-macro_rules! any { ($xs:expr, $x:expr) => { $xs.iter().any(|&x| x == $x) }; }
+macro_rules! any {
+    ($xs:expr, $x:expr) => {
+        $xs.iter().any(|&x| x == $x)
+    };
+}
 
-macro_rules! has_flag { ($value:expr, $flag:expr) => { ($value & $flag) == $flag }; }
+macro_rules! has_flag {
+    ($value:expr, $flag:expr) => {
+        ($value & $flag) == $flag
+    };
+}
 
 fn manage(hwnd: HWND, clients: &mut Vec<HWND>) {
     if any!(clients, hwnd) {
@@ -14,18 +22,33 @@ fn manage(hwnd: HWND, clients: &mut Vec<HWND>) {
 
 fn is_cloaked(hwnd: HWND) -> bool {
     use std::mem::size_of;
-    use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED, DWM_CLOAKED_APP, DWM_CLOAKED_SHELL, DWM_CLOAKED_INHERITED};
+    use windows::Win32::Graphics::Dwm::{
+        DwmGetWindowAttribute, DWMWA_CLOAKED, DWM_CLOAKED_APP, DWM_CLOAKED_INHERITED,
+        DWM_CLOAKED_SHELL,
+    };
     let mut cloaked: u32 = 0;
-    let res = unsafe { DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, (&mut cloaked as *mut u32).cast(),
-    size_of::<u32>().try_into().unwrap()) };
+    let res = unsafe {
+        DwmGetWindowAttribute(
+            hwnd,
+            DWMWA_CLOAKED,
+            (&mut cloaked as *mut u32).cast(),
+            size_of::<u32>().try_into().unwrap(),
+        )
+    };
     match res {
-        Ok(_) => matches!(cloaked, DWM_CLOAKED_APP | DWM_CLOAKED_SHELL | DWM_CLOAKED_INHERITED),
-        _ => false
+        Ok(_) => matches!(
+            cloaked,
+            DWM_CLOAKED_APP | DWM_CLOAKED_SHELL | DWM_CLOAKED_INHERITED
+        ),
+        _ => false,
     }
 }
 
 fn is_manageable(hwnd: HWND, clients: &mut Vec<HWND>) -> bool {
-    use windows::Win32::UI::WindowsAndMessaging::{GetParent, GetWindowLongPtrW,GetWindowTextLengthW, IsWindowVisible, GWL_EXSTYLE, GWL_STYLE, WS_DISABLED, WS_EX_APPWINDOW,WS_EX_NOACTIVATE,WS_EX_TOOLWINDOW};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetParent, GetWindowLongPtrW, GetWindowTextLengthW, IsWindowVisible, GWL_EXSTYLE,
+        GWL_STYLE, WS_DISABLED, WS_EX_APPWINDOW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+    };
     if hwnd.0 == 0 {
         return false;
     }
@@ -76,8 +99,53 @@ fn enum_windows(clients: &mut Vec<HWND>) {
     }
 }
 
+// TODO: is this really ok?
+fn update_geometry() -> Result<(i32, i32, i32, i32), &'static str> {
+    use std::mem::zeroed;
+    use windows::{
+        w,
+        Win32::{
+            Foundation::{FALSE, RECT},
+            UI::WindowsAndMessaging::{
+                FindWindowW, GetSystemMetrics, IsWindowVisible, SystemParametersInfoW,
+                SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
+                SPI_GETWORKAREA, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
+            },
+        },
+    };
+    let (mut sx, mut sy, mut sw, mut sh) = (0, 0, 0, 0);
+    let hwnd = unsafe { FindWindowW(w!("Shell_TrayWnd"), None) };
+    let is_visible: bool = unsafe { IsWindowVisible(hwnd) }.into();
+    if hwnd.0 != 0 && is_visible {
+        let mut wa: RECT = unsafe { zeroed() };
+        let res = unsafe {
+            SystemParametersInfoW(
+                SPI_GETWORKAREA,
+                0,
+                Some(&mut wa as *mut RECT as *mut std::ffi::c_void),
+                SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0),
+            )
+        };
+        if res == FALSE {
+            return Err("");
+        }
+        sx = wa.left;
+        sy = wa.top;
+        sw = wa.right - wa.left;
+        sh = wa.bottom - wa.top;
+    } else {
+        sx = unsafe { GetSystemMetrics(SM_XVIRTUALSCREEN) };
+        sy = unsafe { GetSystemMetrics(SM_YVIRTUALSCREEN) };
+        sw = unsafe { GetSystemMetrics(SM_CXVIRTUALSCREEN) };
+        sh = unsafe { GetSystemMetrics(SM_CYVIRTUALSCREEN) };
+    }
+    Ok((sx, sy, sw, sh))
+}
+
 fn main() -> Result<(), Error> {
     let mut clients: Vec<HWND> = vec![];
+    let work_area_bounds = update_geometry().unwrap();
+    println!("{work_area_bounds:?}");
     enum_windows(&mut clients);
     for client in clients {
         println!("{client:?}");
