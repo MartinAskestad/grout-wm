@@ -142,13 +142,46 @@ fn update_geometry() -> Result<(i32, i32, i32, i32), &'static str> {
     Ok((sx, sy, sw, sh))
 }
 
+fn subdivide(bounds: (i32, i32, i32, i32), vertical: bool) -> Vec<(i32, i32, i32, i32)> {
+    let (bx, by, bw, bh) = bounds;
+    if vertical {
+        vec![(bx, by, bw / 2, bh), (bx + bw / 2, by, bw / 2, bh)]
+    } else {
+        vec![(bx, by, bw, bh / 2), (bx, by + bh / 2, bw, bh / 2)]
+    }
+}
+
+fn spiral_subdivide(bounds: (i32, i32, i32, i32), n: usize) -> Vec<(i32, i32, i32, i32)> {
+    let mut divisions = vec![bounds];
+    for i in 1..n {
+        let d = divisions.pop().unwrap();
+        let new_d = subdivide(d, i % 2 != 0);
+        divisions.extend(new_d);
+    }
+    divisions
+}
+
 fn main() -> Result<(), Error> {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        IsIconic, IsWindowVisible, SetWindowPos, HWND_TOP, SWP_NOACTIVATE,
+    };
     let mut clients: Vec<HWND> = vec![];
     let work_area_bounds = update_geometry().unwrap();
-    println!("{work_area_bounds:?}");
     enum_windows(&mut clients);
-    for client in clients {
-        println!("{client:?}");
+    let visible_clients: Vec<HWND> = clients
+        .into_iter()
+        .filter(|&client| {
+            let minimized: bool =  unsafe { IsIconic(client.clone()).into() };
+            let visible = unsafe { IsWindowVisible(client.clone()).into() };
+            !minimized && visible
+        })
+        .collect();
+    let n = visible_clients.len();
+    let ds = spiral_subdivide(work_area_bounds, n);
+    for (c, d) in visible_clients.iter().zip(ds.iter()) {
+        unsafe {
+            SetWindowPos(c.clone(), HWND_TOP, d.0, d.1, d.2, d.3, SWP_NOACTIVATE);
+        }
     }
     Ok(())
 }
