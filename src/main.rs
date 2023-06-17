@@ -1,8 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::io::Error;
-use std::panic::AssertUnwindSafe;
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::UI::Accessibility::HWINEVENTHOOK;
+use windows::Win32::UI::WindowsAndMessaging::WM_USER;
 
 macro_rules! any {
     ($xs:expr, $x:expr) => {
@@ -16,6 +17,18 @@ macro_rules! has_flag {
     };
 }
 
+static mut SELECTED: HWND = HWND(0);
+
+fn set_selected(hwnd: HWND) {
+    unsafe {
+        SELECTED = hwnd;
+    }
+}
+
+fn get_selected() -> HWND {
+    unsafe { SELECTED }
+}
+
 fn manage(hwnd: HWND, clients: &mut Vec<HWND>) -> Option<HWND> {
     if any!(clients, hwnd) {
         None
@@ -25,7 +38,7 @@ fn manage(hwnd: HWND, clients: &mut Vec<HWND>) -> Option<HWND> {
     }
 }
 
-fn get_client(hwnd: HWND, clients: &mut Vec<HWND>) -> Option<HWND> {
+fn get_client(hwnd: HWND, clients: &mut [HWND]) -> Option<HWND> {
     if any!(clients, hwnd) {
         Some(hwnd)
     } else {
@@ -181,20 +194,24 @@ fn spiral_subdivide(bounds: (i32, i32, i32, i32), n: usize) -> Vec<(i32, i32, i3
 }
 
 fn arrange(clients: &Vec<HWND>) {
-    use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, HWND_TOP, SWP_NOACTIVATE, IsIconic, IsWindowVisible};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        IsIconic, IsWindowVisible, SetWindowPos, HWND_TOP, SWP_NOACTIVATE,
+    };
     let bounds = update_geometry().unwrap();
     let mut visible_clients: Vec<HWND> = vec![];
     for c in clients {
-        let min: bool = unsafe { IsIconic(c.clone()).into() };
-        let vis: bool = unsafe { IsWindowVisible(c.clone()).into()  };
+        let min: bool = unsafe { IsIconic(*c).into() };
+        let vis: bool = unsafe { IsWindowVisible(*c).into() };
         if !min && vis {
-            visible_clients.push(c.clone());
+            visible_clients.push(*c);
         }
     }
     let n = visible_clients.len();
     let ds = spiral_subdivide(bounds, n);
     for (c, d) in visible_clients.iter().zip(ds.iter()) {
-        unsafe { SetWindowPos(c.clone(), HWND_TOP, d.0, d.1, d.2, d.3, SWP_NOACTIVATE); }
+        unsafe {
+            SetWindowPos(*c, HWND_TOP, d.0, d.1, d.2, d.3, SWP_NOACTIVATE);
+        }
     }
 }
 
@@ -207,9 +224,9 @@ unsafe extern "system" fn wnd_proc(
     lparam: LPARAM,
 ) -> LRESULT {
     use windows::Win32::UI::WindowsAndMessaging::{
-        DefWindowProcW, GetWindowLongPtrW, PostQuitMessage, SetWindowLongPtrW, CREATESTRUCTA,
-        GWLP_USERDATA, HSHELL_WINDOWACTIVATED, HSHELL_WINDOWCREATED, HSHELL_WINDOWDESTROYED,
-        WM_CREATE, WM_DESTROY, WM_DISPLAYCHANGE,WM_ACTIVATE,
+        DefWindowProcW, GetWindowLongPtrW, IsIconic, PostQuitMessage, SetWindowLongPtrW,
+        CREATESTRUCTA, GWLP_USERDATA, HSHELL_WINDOWACTIVATED, HSHELL_WINDOWCREATED,
+        HSHELL_WINDOWDESTROYED, WM_CREATE, WM_DESTROY, WM_DISPLAYCHANGE,
     };
     if msg == WM_CREATE {
         let create_struct = lparam.0 as *const CREATESTRUCTA;
@@ -218,14 +235,23 @@ unsafe extern "system" fn wnd_proc(
     }
     let clients = (GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut Vec<HWND>).as_mut();
     match msg {
-        WM_ACTIVATE => {
+        WM_UNCLOAKED => {
+            let hwnd = HWND(lparam.0);
             if let Some(clients) = clients {
-                if is_manageable(hwnd, clients) {
+                let c = get_client(hwnd, clients);
+                if c.is_none() && is_manageable(hwnd, clients) {
                     manage(hwnd, clients);
+                    arrange(clients);
                 }
+            }
+        }
+        WM_CLOAKED => {
+            let hwnd = HWND(lparam.0);
+            if let Some(clients) = clients {
+                unmanage(hwnd, clients);
                 arrange(clients);
             }
-        },
+        }
         WM_DESTROY => {
             PostQuitMessage(0);
         }
@@ -251,7 +277,17 @@ unsafe extern "system" fn wnd_proc(
                             }
                         }
                         HSHELL_WINDOWACTIVATED => {
-                            println!("window activated {lparam:?}");
+                            if let Some(c) = c {
+                                let t = get_selected();
+                                set_selected(c);
+                                if t.0 != 0 && IsIconic(t).into() {
+                                    arrange(clients);
+                                }
+                            } else if is_manageable(hwnd, clients) {
+                                manage(hwnd, clients);
+                                set_selected(hwnd);
+                                arrange(clients);
+                            }
                         }
                         _ => {}
                     }
@@ -263,6 +299,33 @@ unsafe extern "system" fn wnd_proc(
     LRESULT(0)
 }
 
+const WM_UNCLOAKED: u32 = WM_USER + 0x0001;
+const WM_CLOAKED: u32 = WM_USER + 0x0002;
+
+unsafe extern "system" fn wnd_event_proc(
+    _: HWINEVENTHOOK,
+    event: u32,
+    hwnd: HWND,
+    idobject: i32,
+    idchild: i32,
+    _: u32,
+    _: u32,
+) {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        PostMessageW, CHILDID_SELF, EVENT_OBJECT_CLOAKED, EVENT_OBJECT_UNCLOAKED, OBJID_WINDOW,
+    };
+    if idobject != OBJID_WINDOW.0 || (idchild as u32) != CHILDID_SELF || hwnd.0 == 0 {
+        return;
+    }
+    if event == EVENT_OBJECT_UNCLOAKED {
+        PostMessageW(MY_HWND, WM_UNCLOAKED, WPARAM(0), LPARAM(hwnd.0));
+    } else if event == EVENT_OBJECT_CLOAKED {
+        PostMessageW(MY_HWND, WM_CLOAKED, WPARAM(0), LPARAM(hwnd.0));
+    }
+}
+
+static mut MY_HWND: HWND = HWND(0);
+
 fn main() -> Result<(), Error> {
     use std::os::raw::c_void;
     use windows::{
@@ -270,11 +333,15 @@ fn main() -> Result<(), Error> {
         Win32::{
             Foundation::FALSE,
             System::LibraryLoader::GetModuleHandleA,
-            UI::WindowsAndMessaging::{
-                CreateWindowExW, DeregisterShellHookWindow, DispatchMessageW, GetMessageW,
-                LoadCursorW, PostMessageW, RegisterClassW, RegisterShellHookWindow,
-                RegisterWindowMessageW, ShowWindow, TranslateMessage, CW_USEDEFAULT, IDC_ARROW,
-                MSG, SW_SHOWMINNOACTIVE, WINDOW_EX_STYLE, WM_USER, WNDCLASSW, WS_OVERLAPPEDWINDOW,
+            UI::{
+                Accessibility::{SetWinEventHook, UnhookWinEvent},
+                WindowsAndMessaging::{
+                    CreateWindowExW, DeregisterShellHookWindow, DispatchMessageW, GetMessageW,
+                    LoadCursorW, RegisterClassW, RegisterShellHookWindow, RegisterWindowMessageW,
+                    ShowWindow, TranslateMessage, CW_USEDEFAULT, EVENT_OBJECT_CLOAKED,
+                    EVENT_OBJECT_UNCLOAKED, IDC_ARROW, MSG, SW_SHOWMINNOACTIVE, WINDOW_EX_STYLE,
+                    WINEVENT_OUTOFCONTEXT, WNDCLASSW, WS_OVERLAPPEDWINDOW,
+                },
             },
         },
     };
@@ -311,6 +378,9 @@ fn main() -> Result<(), Error> {
     };
     assert_ne!(hwnd.0, 0, "Could not create window");
     unsafe {
+        MY_HWND = hwnd;
+    }
+    unsafe {
         ShowWindow(hwnd, SW_SHOWMINNOACTIVE);
     }
     let res = unsafe { RegisterShellHookWindow(hwnd) };
@@ -318,6 +388,18 @@ fn main() -> Result<(), Error> {
     unsafe {
         SHELL_HOOK_ID = RegisterWindowMessageW(w!("SHELLHOOK"));
     }
+    let wineventhook = unsafe {
+        SetWinEventHook(
+            EVENT_OBJECT_CLOAKED,
+            EVENT_OBJECT_UNCLOAKED,
+            None,
+            Some(wnd_event_proc),
+            0,
+            0,
+            WINEVENT_OUTOFCONTEXT,
+        )
+    };
+    assert_ne!(wineventhook.0, 0, "Can't set win event hook");
     let mut message = MSG::default();
     unsafe {
         while GetMessageW(&mut message, HWND(0), 0, 0).into() {
@@ -327,6 +409,7 @@ fn main() -> Result<(), Error> {
     }
     unsafe {
         DeregisterShellHookWindow(hwnd);
+        UnhookWinEvent(wineventhook);
     }
     Ok(())
 }
