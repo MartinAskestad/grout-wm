@@ -16,5 +16,3 @@ pub fn spiral_subdivide(bounds: (i32, i32, i32, i32), n: usize) -> Vec<(i32, i32
     }
     divisions
 }
-
-

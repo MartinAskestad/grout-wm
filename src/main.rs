@@ -5,6 +5,7 @@ use windows::Win32::Foundation::{BOOL, HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::UI::Accessibility::HWINEVENTHOOK;
 use windows::Win32::UI::WindowsAndMessaging::WM_USER;
 
+mod appwindow;
 mod arrange;
 mod win32;
 
@@ -20,14 +21,14 @@ macro_rules! has_flag {
     };
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 struct Window {
     hwnd: HWND,
 }
 
 struct WM {
     managed_windows: Vec<Window>,
-    selected_window: HWND,
+    selected_window: Window,
     sx: i32,
     sy: i32,
     sw: i32,
@@ -43,7 +44,7 @@ impl WM {
             sy: working_area.1,
             sw: working_area.2,
             sh: working_area.3,
-            selected_window: win32::get_foreground_window(),
+            selected_window: Default::default(),
         }
     }
 
@@ -54,16 +55,17 @@ impl WM {
     }
 
     fn get_window(&mut self, hwnd: HWND) -> Option<Window> {
-        self.managed_windows.iter().find(|w| w.hwnd == hwnd).copied()
+        self.managed_windows
+            .iter()
+            .find(|w| w.hwnd == hwnd)
+            .copied()
     }
 
     fn manage(&mut self, hwnd: HWND) -> Option<Window> {
         if let Some(w) = self.get_window(hwnd) {
             Some(w)
         } else {
-            let w = Window {
-                hwnd,
-            };
+            let w = Window { hwnd };
             self.managed_windows.push(w);
             Some(w)
         }
@@ -127,8 +129,8 @@ impl WM {
 
     fn message_loop(&mut self, hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
         use windows::Win32::UI::WindowsAndMessaging::{
-            DefWindowProcW, HSHELL_WINDOWACTIVATED, HSHELL_WINDOWCREATED,
-            HSHELL_WINDOWDESTROYED, WM_DISPLAYCHANGE,
+            DefWindowProcW, HSHELL_WINDOWACTIVATED, HSHELL_WINDOWCREATED, HSHELL_WINDOWDESTROYED,
+            WM_DISPLAYCHANGE,
         };
         match msg {
             WM_UNCLOAKED => {
@@ -163,15 +165,15 @@ impl WM {
                             }
                         }
                         HSHELL_WINDOWACTIVATED => {
-                            if let Some(_w) = w {
+                            if let Some(w) = w {
                                 let t = self.selected_window;
-                                self.selected_window = hwnd;
-                                if t.0 != 0 && win32::is_iconic(t) {
+                                self.selected_window = w;
+                                if t.hwnd.0 != 0 && win32::is_iconic(t.hwnd) {
                                     self.arrange();
                                 }
                             } else if self.is_manageable(hwnd) {
-                                self.manage(hwnd);
-                                self.selected_window = hwnd;
+                                let w = self.manage(hwnd);
+                                self.selected_window = w.unwrap();
                                 self.arrange();
                             }
                         }
@@ -230,12 +232,13 @@ unsafe extern "system" fn wnd_event_proc(
 
 extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     use windows::Win32::UI::WindowsAndMessaging::{
-        DefWindowProcW, GetWindowLongPtrW, SetWindowLongPtrW, CREATESTRUCTA, GWLP_USERDATA,
-        WM_CREATE,WM_DESTROY, PostQuitMessage
+        DefWindowProcW, GetWindowLongPtrW, PostQuitMessage, SetWindowLongPtrW, CREATESTRUCTA,
+        GWLP_USERDATA, WM_CREATE, WM_DESTROY,
     };
-
     if msg == WM_DESTROY {
-        unsafe { PostQuitMessage(0); }
+        unsafe {
+            PostQuitMessage(0);
+        }
         return LRESULT(0);
     }
     if msg == WM_CREATE {
@@ -341,17 +344,20 @@ fn main() -> Result<(), &'static str> {
     let mut wm = WM::new();
     enum_windows(&mut wm);
     let wm_ptr = &mut wm as *mut _ as *mut c_void;
-    let (hwnd, wineventhook) = create_app_window(wm_ptr)?;
-    let mut message = MSG::default();
-    unsafe {
-        while GetMessageW(&mut message, HWND(0), 0, 0).into() {
-            TranslateMessage(&message);
-            DispatchMessageW(&message);
-        }
-    }
-    unsafe {
-        DeregisterShellHookWindow(hwnd);
-        UnhookWinEvent(wineventhook);
-    }
+    let appwindow = appwindow::AppWindow::new()?
+        .handle_messages()?
+        .cleanup();
+    // let (hwnd, wineventhook) = create_app_window(wm_ptr)?;
+    // let mut message = MSG::default();
+    // unsafe {
+    //     while GetMessageW(&mut message, HWND(0), 0, 0).into() {
+    //         TranslateMessage(&message);
+    //         DispatchMessageW(&message);
+    //     }
+    // }
+    // unsafe {
+    //     DeregisterShellHookWindow(hwnd);
+    //     UnhookWinEvent(wineventhook);
+    // }
     Ok(())
 }

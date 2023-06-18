@@ -1,5 +1,6 @@
 use std::mem::{size_of, zeroed};
 use windows::{
+    core::PCWSTR,
     w,
     Win32::{
         Foundation::{FALSE, HWND, RECT},
@@ -7,13 +8,16 @@ use windows::{
             DwmGetWindowAttribute, DWMWA_CLOAKED, DWM_CLOAKED_APP, DWM_CLOAKED_INHERITED,
             DWM_CLOAKED_SHELL,
         },
+        System::LibraryLoader::GetModuleHandleA,
+        UI::Accessibility::{SetWinEventHook, HWINEVENTHOOK, WINEVENTPROC},
         UI::WindowsAndMessaging::{
-            HWND_TOP, SWP_NOACTIVATE,
-            GetForegroundWindow,SetWindowPos,
-            FindWindowW, GetParent, GetSystemMetrics, GetWindowLongPtrW, GetWindowTextLengthW,
-            IsIconic, IsWindowVisible, SystemParametersInfoW, GWL_EXSTYLE, GWL_STYLE,
-            SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
-            SPI_GETWORKAREA, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
+            FindWindowW, GetForegroundWindow, GetParent, GetSystemMetrics, GetWindowLongPtrW,
+            GetWindowTextLengthW, IsIconic, IsWindowVisible, RegisterClassW,
+            RegisterShellHookWindow, RegisterWindowMessageW, SetWindowPos, ShowWindow,
+            SystemParametersInfoW, EVENT_OBJECT_CLOAKED, EVENT_OBJECT_UNCLOAKED, GWL_EXSTYLE,
+            GWL_STYLE, HWND_TOP, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
+            SM_YVIRTUALSCREEN, SPI_GETWORKAREA, SWP_NOACTIVATE, SW_SHOWMINNOACTIVE,
+            SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, WINEVENT_OUTOFCONTEXT, WNDCLASSW,
         },
     },
 };
@@ -93,5 +97,41 @@ pub fn get_foreground_window() -> HWND {
 }
 
 pub fn set_window_pos(hwnd: HWND, d: (i32, i32, i32, i32)) {
-    unsafe { SetWindowPos(hwnd, HWND_TOP, d.0, d.1, d.2, d.3, SWP_NOACTIVATE); }
+    unsafe {
+        SetWindowPos(hwnd, HWND_TOP, d.0, d.1, d.2, d.3, SWP_NOACTIVATE);
+    }
+}
+
+pub fn get_module_handle() -> windows::core::Result<windows::Win32::Foundation::HMODULE> {
+    unsafe { GetModuleHandleA(None) }
+}
+
+pub fn register_class(wc: *const WNDCLASSW) -> u16 {
+    unsafe { RegisterClassW(wc) }
+}
+
+pub fn register_shell_hook_window(hwnd: HWND) -> bool {
+    unsafe { RegisterShellHookWindow(hwnd).into() }
+}
+
+pub fn register_window_messagew(s: PCWSTR) -> u32 {
+    unsafe { RegisterWindowMessageW(s) }
+}
+
+pub fn set_win_event_hook(wndproc: WINEVENTPROC) -> HWINEVENTHOOK {
+    unsafe {
+        SetWinEventHook(
+            EVENT_OBJECT_CLOAKED,
+            EVENT_OBJECT_UNCLOAKED,
+            None,
+            wndproc,
+            0,
+            0,
+            WINEVENT_OUTOFCONTEXT,
+        )
+    }
+}
+
+pub fn show_window(hwnd: HWND) -> bool {
+    unsafe { ShowWindow(hwnd, SW_SHOWMINNOACTIVE).into() }
 }
