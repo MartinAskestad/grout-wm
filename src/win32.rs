@@ -3,7 +3,7 @@ use windows::{
     core::PCWSTR,
     w,
     Win32::{
-        Foundation::{FALSE, HWND, RECT},
+        Foundation::{FALSE, HWND, LPARAM, RECT},
         Graphics::Dwm::{
             DwmGetWindowAttribute, DWMWA_CLOAKED, DWM_CLOAKED_APP, DWM_CLOAKED_INHERITED,
             DWM_CLOAKED_SHELL,
@@ -11,13 +11,14 @@ use windows::{
         System::LibraryLoader::GetModuleHandleA,
         UI::Accessibility::{SetWinEventHook, HWINEVENTHOOK, WINEVENTPROC},
         UI::WindowsAndMessaging::{
-            FindWindowW, GetForegroundWindow, GetParent, GetSystemMetrics, GetWindowLongPtrW,
-            GetWindowTextLengthW, IsIconic, IsWindowVisible, RegisterClassW,
-            RegisterShellHookWindow, RegisterWindowMessageW, SetWindowPos, ShowWindow,
-            SystemParametersInfoW, EVENT_OBJECT_CLOAKED, EVENT_OBJECT_UNCLOAKED, GWL_EXSTYLE,
-            GWL_STYLE, HWND_TOP, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
-            SM_YVIRTUALSCREEN, SPI_GETWORKAREA, SWP_NOACTIVATE, SW_SHOWMINNOACTIVE,
-            SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, WINEVENT_OUTOFCONTEXT, WNDCLASSW,
+            EnumWindows, FindWindowW, GetClassNameW, GetForegroundWindow, GetParent,
+            GetSystemMetrics, GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW, IsIconic,
+            IsWindowVisible, RegisterClassW, RegisterShellHookWindow, RegisterWindowMessageW,
+            SetWindowPos, ShowWindow, SystemParametersInfoW, EVENT_OBJECT_CLOAKED,
+            EVENT_OBJECT_UNCLOAKED, GWL_EXSTYLE, GWL_STYLE, HWND_TOP, SM_CXVIRTUALSCREEN,
+            SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SPI_GETWORKAREA,
+            SWP_NOACTIVATE, SW_SHOWMINNOACTIVE, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
+            WINEVENT_OUTOFCONTEXT, WNDCLASSW, WNDENUMPROC,
         },
     },
 };
@@ -134,4 +135,20 @@ pub fn set_win_event_hook(wndproc: WINEVENTPROC) -> HWINEVENTHOOK {
 
 pub fn show_window(hwnd: HWND) -> bool {
     unsafe { ShowWindow(hwnd, SW_SHOWMINNOACTIVE).into() }
+}
+
+pub fn enum_windows(cb: WNDENUMPROC, param: LPARAM) -> bool {
+    unsafe { EnumWindows(cb, param).into() }
+}
+
+pub fn get_window_text(hwnd: HWND) -> String {
+    let mut buf: [u16; 512] = [0; 512];
+    let len = unsafe { GetWindowTextW(hwnd, &mut buf) };
+    String::from_utf16_lossy(&buf[..len as usize])
+}
+
+pub fn get_window_classname(hwnd: HWND) -> String {
+    let mut buf: [u16; 512] = [0; 512];
+    let len = unsafe { GetClassNameW(hwnd, &mut buf) };
+    String::from_utf16_lossy(&buf[..len as usize])
 }
