@@ -81,11 +81,33 @@ impl WM {
         let no_activate = has_flag!(exstyle, WS_EX_NOACTIVATE.0);
         let is_visible = win32::is_window_visible(hwnd);
         let is_cloaked = win32::is_cloaked(hwnd);
+        let title = win32::get_window_text(hwnd);
+        let class_name = win32::get_window_classname(hwnd);
         if p_ok && !any!(self.managed_windows, parent) {
             self.manage(parent);
         }
         let title_len = win32::get_window_text_length(hwnd);
         if title_len == 0 || disabled || no_activate || is_cloaked {
+            return false;
+        }
+        let titles = [
+            "Windows Shell Experience Host",
+            "Microsoft Text Input Application",
+            "Action center",
+            "New Notification",
+            "Date and Time Information",
+            "Volume Control",
+            "Network Connections",
+            "Cortana",
+            "Start",
+            "Windows Default Lock Screen",
+            "Search",
+        ];
+        if class_name.contains("Windows.UI.Core.CoreWindow") && titles.iter().any(|&t| title.contains(t)) {
+            return false;
+        }
+        let classes = ["ForegroundStaging", "ApplicationManager_DesktopShellWindow", "Static", "Scrollbar", "Progman"];
+        if classes.iter().any(|&cn| class_name.contains(cn)) {
             return false;
         }
         if (parent.0 == 0 && is_visible) || p_ok {
