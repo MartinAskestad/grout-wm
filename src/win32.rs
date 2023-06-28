@@ -11,7 +11,7 @@ use windows::{
         System::LibraryLoader::GetModuleHandleA,
         UI::Accessibility::{SetWinEventHook, HWINEVENTHOOK, WINEVENTPROC},
         UI::WindowsAndMessaging::{
-            EnumWindows, FindWindowW, GetClassNameW, GetForegroundWindow, GetParent,
+            EnumWindows, FindWindowW, GetClassNameW, GetParent,
             GetSystemMetrics, GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW, IsIconic,
             IsWindowVisible, RegisterClassW, RegisterShellHookWindow, RegisterWindowMessageW,
             SetWindowPos, ShowWindow, SystemParametersInfoW, GWL_EXSTYLE, GWL_STYLE, HWND_TOP,
@@ -90,10 +90,6 @@ pub fn get_working_area() -> Result<(i32, i32, i32, i32), &'static str> {
             unsafe { GetSystemMetrics(SM_CYVIRTUALSCREEN) },
         ))
     }
-}
-
-pub fn get_foreground_window() -> HWND {
-    unsafe { GetForegroundWindow() }
 }
 
 pub fn set_window_pos(hwnd: HWND, d: (i32, i32, i32, i32)) {

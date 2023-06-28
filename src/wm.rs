@@ -175,7 +175,7 @@ impl WM {
                 }
             },
             (WM_MINIMIZESTART, _) => {
-                if let Some(c) = managed_window {
+                if managed_window.is_some() {
                     if let Some(index) = self.managed_windows.iter().position(|&w| w.selected) {
                         let t = &mut self.managed_windows[index];
                         t.minimized = win32::is_iconic(t.hwnd);
@@ -199,21 +199,8 @@ impl WM {
                 }
             },
             (id, HSHELL_WINDOWACTIVATED) if id == self.shell_hook_id => {
-                println!("HSHELL_WINDOWACTIVATED");
                 if let Some(c) = managed_window {
-                    if let Some(index) = self.managed_windows.iter().position(|&w| w.selected) {
-                        let t = &mut self.managed_windows[index];
-                        t.minimized = win32::is_iconic(t.hwnd);
-                        if t.minimized {
-                            self.arrange();
-                        }
-                    }
                     self.set_selected(c.hwnd);
-                    if let Some(index) = self.managed_windows.iter().position(|&w| w.selected) {
-                        let sel = &mut self.managed_windows[index];
-                        sel.minimized = false;
-                        self.arrange();
-                    }
                 }
             },
             _ => {
