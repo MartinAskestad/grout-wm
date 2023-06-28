@@ -56,7 +56,6 @@ impl WM {
         } else {
             let w = Window::new(hwnd);
             #[cfg(debug_assertions)]
-            println!("Manage window: {:?}", w);
             self.managed_windows.push(w);
             Some(w)
         }
@@ -123,9 +122,7 @@ impl WM {
             .collect();
         let number_of_windows = windows_on_screen.len();
         let ds = spiral_subdivide(self.working_area, number_of_windows);
-        println!("{:?}", self.managed_windows);
         for (w, d) in windows_on_screen.iter().zip(ds.iter()) {
-            println!("{:?}", w);
             win32::set_window_pos(w.hwnd, *d);
         }
     }
