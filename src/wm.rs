@@ -23,6 +23,8 @@ macro_rules! has_flag {
 
 pub const WM_UNCLOAKED: u32 = WM_USER + 0x0001;
 pub const WM_CLOAKED: u32 = WM_USER + 0x0002;
+pub const WM_MINIMIZEEND: u32 = WM_USER + 0x0004;
+pub const WM_MINIMIZESTART: u32 = WM_USER + 0x0008;
 
 #[derive(Debug)]
 pub struct WM {
@@ -150,22 +152,40 @@ impl WM {
         let wmsg = wparam.0 as u32 & 0x7FFF;
         match (msg, wmsg) {
             (WM_CLOAKED, _) => {
-                println!("WM_CLOAKED");
                 if managed_window.is_some() {
                     self.unmanage(handle);
                     self.arrange();
                 }
             },
             (WM_UNCLOAKED, _) => {
-                println!("WM_UNCLOAKED");
                 if managed_window.is_none() && self.is_manageable(handle) {
                     self.manage(handle);
                     self.set_selected(handle);
                     self.arrange();
                 }
             },
+            (WM_MINIMIZEEND, _) => {
+                if let Some(c) = managed_window {
+                    self.set_selected(c.hwnd);
+                    if let Some(index) = self.managed_windows.iter().position(|&w| w.selected) {
+                        let sel = &mut self.managed_windows[index];
+                        sel.minimized = false;
+                        self.arrange();
+                    }
+                }
+            },
+            (WM_MINIMIZESTART, _) => {
+                if let Some(c) = managed_window {
+                    if let Some(index) = self.managed_windows.iter().position(|&w| w.selected) {
+                        let t = &mut self.managed_windows[index];
+                        t.minimized = win32::is_iconic(t.hwnd);
+                        if t.minimized {
+                            self.arrange();
+                        }
+                    }
+                }
+            },
             (id, HSHELL_WINDOWCREATED) if id == self.shell_hook_id => {
-                println!("HSHELL_WINDOWCREATED");
                 if managed_window.is_none() && self.is_manageable(handle) {
                     self.manage(handle);
                     self.set_selected(handle);
@@ -173,7 +193,6 @@ impl WM {
                 }
             },
             (id, HSHELL_WINDOWDESTROYED) if id == self.shell_hook_id => {
-                println!("HSHELL_WINDOWDESTROYED");
                 if managed_window.is_some() {
                     self.unmanage(handle);
                     self.arrange();

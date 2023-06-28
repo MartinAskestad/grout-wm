@@ -8,20 +8,22 @@ use windows::Win32::{
         WindowsAndMessaging::{
             CreateWindowExW, DefWindowProcW, DeregisterShellHookWindow, GetWindowLongPtrW,
             PostMessageW, PostQuitMessage, SetWindowLongPtrW, CHILDID_SELF, CREATESTRUCTA,
-            CW_USEDEFAULT, EVENT_OBJECT_CLOAKED, EVENT_OBJECT_UNCLOAKED, GWLP_USERDATA,
-            OBJID_WINDOW, WINDOW_EX_STYLE, WM_CREATE, WM_DESTROY, WNDCLASSW, WS_OVERLAPPEDWINDOW,
+            CW_USEDEFAULT, EVENT_OBJECT_CLOAKED, EVENT_OBJECT_UNCLOAKED, EVENT_SYSTEM_MINIMIZEEND,
+            EVENT_SYSTEM_MINIMIZESTART, GWLP_USERDATA, OBJID_WINDOW, WINDOW_EX_STYLE, WM_CREATE,
+            WM_DESTROY, WNDCLASSW, WS_OVERLAPPEDWINDOW,
         },
     },
 };
 
 use crate::win32;
-use crate::wm::{WM, WM_CLOAKED, WM_UNCLOAKED};
+use crate::wm::{WM, WM_CLOAKED, WM_UNCLOAKED, WM_MINIMIZEEND, WM_MINIMIZESTART};
 
 static mut MY_HWND: HWND = HWND(0);
 
 pub struct AppWindow {
     hwnd: HWND,
-    wineventhook: HWINEVENTHOOK,
+    cloaked_event_hook: HWINEVENTHOOK,
+    minimized_event_hook: HWINEVENTHOOK,
 }
 
 impl AppWindow {
@@ -69,8 +71,17 @@ impl AppWindow {
             }
             let shell_hook_id = win32::register_window_messagew(w!("SHELLHOOK"));
             wm.set_shell_hook_id(shell_hook_id);
-            let wineventhook = win32::set_win_event_hook(Some(Self::wnd_event_proc));
-            Ok(Self { hwnd, wineventhook })
+            let cloaked_event_hook = win32::set_win_event_hook(
+                EVENT_OBJECT_CLOAKED,
+                EVENT_OBJECT_UNCLOAKED,
+                Some(Self::wnd_event_proc),
+            );
+            let minimized_event_hook = win32::set_win_event_hook(EVENT_SYSTEM_MINIMIZESTART, EVENT_SYSTEM_MINIMIZEEND, Some(Self::wnd_event_proc));
+            Ok(Self {
+                hwnd,
+                cloaked_event_hook,
+                minimized_event_hook,
+            })
         } else {
             Err("Could not get instance")
         }
@@ -93,7 +104,8 @@ impl AppWindow {
     pub fn cleanup(&self) -> Result<&Self, &'static str> {
         unsafe {
             DeregisterShellHookWindow(self.hwnd);
-            UnhookWinEvent(self.wineventhook);
+            UnhookWinEvent(self.cloaked_event_hook);
+            UnhookWinEvent(self.minimized_event_hook);
         }
         Ok(self)
     }
@@ -109,6 +121,12 @@ impl AppWindow {
     ) {
         if idobject != OBJID_WINDOW.0 || (idchild as u32) != CHILDID_SELF || hwnd.0 == 0 {
             return;
+        }
+        if event == EVENT_SYSTEM_MINIMIZEEND {
+            PostMessageW(MY_HWND, WM_MINIMIZEEND, WPARAM(0), LPARAM(hwnd.0));
+        }
+        if event == EVENT_SYSTEM_MINIMIZESTART {
+            PostMessageW(MY_HWND, WM_MINIMIZESTART, WPARAM(0), LPARAM(hwnd.0));
         }
         if event == EVENT_OBJECT_UNCLOAKED {
             PostMessageW(MY_HWND, WM_UNCLOAKED, WPARAM(0), LPARAM(hwnd.0));
