@@ -14,11 +14,10 @@ use windows::{
             EnumWindows, FindWindowW, GetClassNameW, GetForegroundWindow, GetParent,
             GetSystemMetrics, GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW, IsIconic,
             IsWindowVisible, RegisterClassW, RegisterShellHookWindow, RegisterWindowMessageW,
-            SetWindowPos, ShowWindow, SystemParametersInfoW, EVENT_OBJECT_CLOAKED,
-            EVENT_OBJECT_UNCLOAKED, GWL_EXSTYLE, GWL_STYLE, HWND_TOP, SM_CXVIRTUALSCREEN,
-            SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SPI_GETWORKAREA,
-            SWP_NOACTIVATE, SW_SHOWMINNOACTIVE, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
-            WINEVENT_OUTOFCONTEXT, WNDCLASSW, WNDENUMPROC,
+            SetWindowPos, ShowWindow, SystemParametersInfoW, GWL_EXSTYLE, GWL_STYLE, HWND_TOP,
+            SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
+            SPI_GETWORKAREA, SWP_NOACTIVATE, SW_SHOWMINNOACTIVE,
+            SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, WINEVENT_OUTOFCONTEXT, WNDCLASSW, WNDENUMPROC,
         },
     },
 };
@@ -119,11 +118,11 @@ pub fn register_window_messagew(s: PCWSTR) -> u32 {
     unsafe { RegisterWindowMessageW(s) }
 }
 
-pub fn set_win_event_hook(wndproc: WINEVENTPROC) -> HWINEVENTHOOK {
+pub fn set_win_event_hook(eventmin: u32, eventmax: u32, wndproc: WINEVENTPROC) -> HWINEVENTHOOK {
     unsafe {
         SetWinEventHook(
-            EVENT_OBJECT_CLOAKED,
-            EVENT_OBJECT_UNCLOAKED,
+            eventmin,
+            eventmax,
             None,
             wndproc,
             0,
