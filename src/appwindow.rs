@@ -7,11 +7,11 @@ use windows::Win32::{
     UI::{
         Accessibility::{UnhookWinEvent, HWINEVENTHOOK},
         WindowsAndMessaging::{
-            CreateWindowExW, DefWindowProcW, DeregisterShellHookWindow, GetWindowLongPtrW,
-            PostMessageW, PostQuitMessage, SetWindowLongPtrW, CHILDID_SELF, CREATESTRUCTA,
-            CW_USEDEFAULT, EVENT_OBJECT_CLOAKED, EVENT_OBJECT_UNCLOAKED, EVENT_SYSTEM_MINIMIZEEND,
-            EVENT_SYSTEM_MINIMIZESTART, GWLP_USERDATA, OBJID_WINDOW, WINDOW_EX_STYLE, WM_CREATE,
-            WM_DESTROY, WNDCLASSW, WS_OVERLAPPEDWINDOW,
+            CreateWindowExW, DeregisterShellHookWindow, GetWindowLongPtrW, SetWindowLongPtrW,
+            CHILDID_SELF, CREATESTRUCTA, CW_USEDEFAULT, EVENT_OBJECT_CLOAKED,
+            EVENT_OBJECT_UNCLOAKED, EVENT_SYSTEM_MINIMIZEEND, EVENT_SYSTEM_MINIMIZESTART,
+            GWLP_USERDATA, OBJID_WINDOW, WINDOW_EX_STYLE, WM_CREATE, WM_DESTROY, WNDCLASSW,
+            WS_OVERLAPPEDWINDOW,
         },
     },
 };
@@ -64,6 +64,7 @@ impl AppWindow {
             let _ = MY_HWND.set(hwnd);
             win32::show_window(hwnd);
             wm.manage(hwnd);
+            wm.arrange();
             let shell_hook_res = win32::register_shell_hook_window(hwnd);
             if !shell_hook_res {
                 return Err("Could not register shell hook window");
@@ -113,7 +114,7 @@ impl AppWindow {
         Ok(self)
     }
 
-    unsafe extern "system" fn wnd_event_proc(
+    extern "system" fn wnd_event_proc(
         _: HWINEVENTHOOK,
         event: u32,
         hwnd: HWND,
@@ -127,24 +128,22 @@ impl AppWindow {
         }
         if let Some(&my_hwnd) = MY_HWND.get() {
             if event == EVENT_SYSTEM_MINIMIZEEND {
-                PostMessageW(my_hwnd, WM_MINIMIZEEND, WPARAM(0), LPARAM(hwnd.0));
+                win32::post_message(my_hwnd, WM_MINIMIZEEND, WPARAM(0), LPARAM(hwnd.0));
             }
             if event == EVENT_SYSTEM_MINIMIZESTART {
-                PostMessageW(my_hwnd, WM_MINIMIZESTART, WPARAM(0), LPARAM(hwnd.0));
+                win32::post_message(my_hwnd, WM_MINIMIZESTART, WPARAM(0), LPARAM(hwnd.0));
             }
             if event == EVENT_OBJECT_UNCLOAKED {
-                PostMessageW(my_hwnd, WM_UNCLOAKED, WPARAM(0), LPARAM(hwnd.0));
+                win32::post_message(my_hwnd, WM_UNCLOAKED, WPARAM(0), LPARAM(hwnd.0));
             } else if event == EVENT_OBJECT_CLOAKED {
-                PostMessageW(my_hwnd, WM_CLOAKED, WPARAM(0), LPARAM(hwnd.0));
+                win32::post_message(my_hwnd, WM_CLOAKED, WPARAM(0), LPARAM(hwnd.0));
             }
         }
     }
 
     extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
         if msg == WM_DESTROY {
-            unsafe {
-                PostQuitMessage(0);
-            }
+            win32::post_quit_message(0);
             return LRESULT(0);
         }
         if msg == WM_CREATE {
@@ -158,6 +157,6 @@ impl AppWindow {
         if !wm.is_null() {
             return unsafe { (*wm).message_loop(hwnd, msg, wparam, lparam) };
         }
-        unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+        win32::def_window_proc(hwnd, msg, wparam, lparam)
     }
 }

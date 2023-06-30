@@ -158,7 +158,7 @@ impl WM {
         }
     }
 
-    fn arrange(&self) {
+    pub fn arrange(&self) {
         let windows_on_screen: Vec<Window> = self
             .managed_windows
             .clone()
