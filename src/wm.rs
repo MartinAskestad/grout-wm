@@ -17,7 +17,7 @@ macro_rules! any {
 
 macro_rules! has_flag {
     ($value:expr, $flag:expr) => {
-        ($value & $flag) == $flag
+        ($value & $flag) != 0
     };
 }
 
@@ -55,7 +55,6 @@ impl WM {
             Some(w)
         } else {
             let w = Window::new(hwnd);
-            #[cfg(debug_assertions)]
             self.managed_windows.push(w);
             Some(w)
         }
@@ -83,6 +82,7 @@ impl WM {
         let is_cloaked = win32::is_cloaked(hwnd);
         let title = win32::get_window_text(hwnd);
         let class_name = win32::get_window_classname(hwnd);
+        let process_name = win32::get_exe_filename(hwnd);
         if p_ok && !any!(self.managed_windows, parent) {
             self.manage(parent);
         }
@@ -103,18 +103,45 @@ impl WM {
             "Windows Default Lock Screen",
             "Search",
         ];
-        if class_name.contains("Windows.UI.Core.CoreWindow") && titles.iter().any(|&t| title.contains(t)) {
+        if class_name.contains("Windows.UI.Core.CoreWindow")
+            && titles.iter().any(|&t| title.contains(t))
+        {
             return false;
         }
-        let classes = ["ForegroundStaging", "ApplicationManager_DesktopShellWindow", "Static", "Scrollbar", "Progman"];
+        let classes = [
+            "ForegroundStaging",
+            "ApplicationManager_DesktopShellWindow",
+            "Static",
+            "Scrollbar",
+            "Progman",
+            "WorkerW",
+        ];
         if classes.iter().any(|&cn| class_name.contains(cn)) {
             return false;
         }
+        let processes = [
+            "SearchUI",
+            "ShellExperienceHost",
+            "LockApp",
+            "PeopleExperienceHost",
+            "StartMenuExperienceHost",
+            "SearchApp",
+            "SearchHost",
+            "search",
+            "ScreenClippingHost",
+        ];
+        if let Some(process_name) = process_name {
+            if processes.iter().any(|&p| process_name.contains(p)) {
+                return false;
+            }
+        }
         if (parent.0 == 0 && is_visible) || p_ok {
             if !is_tool || parent.0 == 0 || p_ok {
+                dbg!(Window::new(hwnd));
                 return true;
             }
             if is_app && parent.0 != 0 {
+                dbg!(Window::new(hwnd));
                 return true;
             }
         }
@@ -175,14 +202,14 @@ impl WM {
                     self.unmanage(handle);
                     self.arrange();
                 }
-            },
+            }
             (WM_UNCLOAKED, _) => {
                 if managed_window.is_none() && self.is_manageable(handle) {
                     self.manage(handle);
                     self.set_selected(handle);
                     self.arrange();
                 }
-            },
+            }
             (WM_MINIMIZEEND, _) => {
                 if let Some(c) = managed_window {
                     self.set_selected(c.hwnd);
@@ -192,7 +219,7 @@ impl WM {
                         self.arrange();
                     }
                 }
-            },
+            }
             (WM_MINIMIZESTART, _) => {
                 if managed_window.is_some() {
                     if let Some(index) = self.managed_windows.iter().position(|&w| w.selected) {
@@ -203,25 +230,25 @@ impl WM {
                         }
                     }
                 }
-            },
+            }
             (id, HSHELL_WINDOWCREATED) if id == self.shell_hook_id => {
                 if managed_window.is_none() && self.is_manageable(handle) {
                     self.manage(handle);
                     self.set_selected(handle);
                     self.arrange();
                 }
-            },
+            }
             (id, HSHELL_WINDOWDESTROYED) if id == self.shell_hook_id => {
                 if managed_window.is_some() {
                     self.unmanage(handle);
                     self.arrange();
                 }
-            },
+            }
             (id, HSHELL_WINDOWACTIVATED) if id == self.shell_hook_id => {
                 if let Some(c) = managed_window {
                     self.set_selected(c.hwnd);
                 }
-            },
+            }
             _ => {
                 return unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
             }
