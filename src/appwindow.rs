@@ -16,7 +16,7 @@ use windows::Win32::{
 };
 
 use crate::win32;
-use crate::wm::{WM, WM_CLOAKED, WM_UNCLOAKED, WM_MINIMIZEEND, WM_MINIMIZESTART};
+use crate::wm::{WM, WM_CLOAKED, WM_MINIMIZEEND, WM_MINIMIZESTART, WM_UNCLOAKED};
 
 static mut MY_HWND: HWND = HWND(0);
 
@@ -76,7 +76,11 @@ impl AppWindow {
                 EVENT_OBJECT_UNCLOAKED,
                 Some(Self::wnd_event_proc),
             );
-            let minimized_event_hook = win32::set_win_event_hook(EVENT_SYSTEM_MINIMIZESTART, EVENT_SYSTEM_MINIMIZEEND, Some(Self::wnd_event_proc));
+            let minimized_event_hook = win32::set_win_event_hook(
+                EVENT_SYSTEM_MINIMIZESTART,
+                EVENT_SYSTEM_MINIMIZEEND,
+                Some(Self::wnd_event_proc),
+            );
             Ok(Self {
                 hwnd,
                 cloaked_event_hook,

@@ -27,6 +27,10 @@ impl fmt::Debug for Window {
             .field("title", &win32::get_window_text(self.hwnd))
             .field("class", &win32::get_window_classname(self.hwnd))
             .field("minimized", &self.minimized)
+            .field("parent", &win32::get_parent(self.hwnd))
+            .field("ex_style", &win32::get_window_exstyle(self.hwnd))
+            .field("style", &win32::get_window_style(self.hwnd))
+            .field("process", &win32::get_exe_filename(self.hwnd))
             .finish()
     }
 }
