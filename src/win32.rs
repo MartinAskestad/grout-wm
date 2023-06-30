@@ -3,7 +3,9 @@ use windows::{
     core::PCWSTR,
     w,
     Win32::{
-        Foundation::{CloseHandle, FALSE, HMODULE, HWND, LPARAM, MAX_PATH, RECT},
+        Foundation::{
+            CloseHandle, BOOL, FALSE, HMODULE, HWND, LPARAM, LRESULT, MAX_PATH, RECT, WPARAM,
+        },
         Graphics::Dwm::{
             DwmGetWindowAttribute, DWMWA_CLOAKED, DWM_CLOAKED_APP, DWM_CLOAKED_INHERITED,
             DWM_CLOAKED_SHELL,
@@ -11,20 +13,20 @@ use windows::{
         System::{
             LibraryLoader::GetModuleHandleA,
             ProcessStatus::{
-                EnumProcessModules, GetModuleBaseNameW, GetModuleInformation,
-                MODULEINFO,
+                EnumProcessModules, GetModuleBaseNameW, GetModuleInformation, MODULEINFO,
             },
             Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ},
         },
         UI::Accessibility::{SetWinEventHook, HWINEVENTHOOK, WINEVENTPROC},
         UI::WindowsAndMessaging::{
-            EnumWindows, FindWindowW, GetClassNameW, GetParent, GetSystemMetrics,
+            DefWindowProcW, EnumWindows, FindWindowW, GetClassNameW, GetParent, GetSystemMetrics,
             GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
-            IsIconic, IsWindowVisible, RegisterClassW, RegisterShellHookWindow,
-            RegisterWindowMessageW, SetWindowPos, ShowWindow, SystemParametersInfoW, GWL_EXSTYLE,
-            GWL_STYLE, HWND_TOP, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
-            SM_YVIRTUALSCREEN, SPI_GETWORKAREA, SWP_NOACTIVATE, SW_SHOWMINNOACTIVE,
-            SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, WINEVENT_OUTOFCONTEXT, WNDCLASSW, WNDENUMPROC,
+            IsIconic, IsWindowVisible, PostMessageW, PostQuitMessage, RegisterClassW,
+            RegisterShellHookWindow, RegisterWindowMessageW, SetWindowPos, ShowWindow,
+            SystemParametersInfoW, GWL_EXSTYLE, GWL_STYLE, HWND_TOP, SM_CXVIRTUALSCREEN,
+            SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SPI_GETWORKAREA,
+            SWP_NOACTIVATE, SW_SHOWMINNOACTIVE, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
+            WINEVENT_OUTOFCONTEXT, WNDCLASSW, WNDENUMPROC,
         },
     },
 };
@@ -165,56 +167,52 @@ pub fn get_exe_filename(hwnd: HWND) -> Option<String> {
             process_id,
         );
         if let Ok(process_handle) = process_handle_res {
-        let mut module_handles: [HMODULE; 1024] = [HMODULE(0); 1024];
-        let mut module_handles_size = 0;
-        if EnumProcessModules(
-            process_handle,
-            module_handles.as_mut_ptr(),
-            (module_handles.len() * size_of::<HMODULE>()) as u32,
-            &mut module_handles_size,
-        ) == FALSE
-        {
-            return None;
-        }
-        let module_handle = module_handles[0];
-        let mut module_info: MODULEINFO = zeroed();
-        if GetModuleInformation(
-            process_handle,
-            module_handle,
-            &mut module_info,
-            std::mem::size_of::<MODULEINFO>().try_into().unwrap(),
-        ) == FALSE
-        {
-            return None;
-        }
-        let mut module_base_name: [u16; MAX_PATH as usize] = [0; MAX_PATH as usize];
-        let base_name_length =
-            GetModuleBaseNameW(process_handle, module_handle, &mut module_base_name);
-        if base_name_length == 0 {
-            return None;
-        }
-        CloseHandle(process_handle);
-        Some(String::from_utf16_lossy(
-            &module_base_name[..base_name_length as usize],
-        ))
+            let mut module_handles: [HMODULE; 1024] = [HMODULE(0); 1024];
+            let mut module_handles_size = 0;
+            if EnumProcessModules(
+                process_handle,
+                module_handles.as_mut_ptr(),
+                (module_handles.len() * size_of::<HMODULE>()) as u32,
+                &mut module_handles_size,
+            ) == FALSE
+            {
+                return None;
+            }
+            let module_handle = module_handles[0];
+            let mut module_info: MODULEINFO = zeroed();
+            if GetModuleInformation(
+                process_handle,
+                module_handle,
+                &mut module_info,
+                std::mem::size_of::<MODULEINFO>().try_into().unwrap(),
+            ) == FALSE
+            {
+                return None;
+            }
+            let mut module_base_name: [u16; MAX_PATH as usize] = [0; MAX_PATH as usize];
+            let base_name_length =
+                GetModuleBaseNameW(process_handle, module_handle, &mut module_base_name);
+            if base_name_length == 0 {
+                return None;
+            }
+            CloseHandle(process_handle);
+            Some(String::from_utf16_lossy(
+                &module_base_name[..base_name_length as usize],
+            ))
         } else {
             None
         }
     }
 }
-// pub fn get_process_name(hwnd: HWND) -> Result<String, &'static String> {
-//     let mut process_ids: Vec<u32> = Vec::with_capacity(1024);
-//     loop {
-//         let bytes_available = (size_of::<u32>() * process_ids.capacity()) as u32;
-//         let mut bytes_needed = 0;
-//         unsafe {
-//             EnumProcesses(process_ids.as_mut_ptr(), bytes_available, &mut bytes_needed).ok()?;
-//         }
-//         if bytes_needed < bytes_available {
-//             unsafe { process_ids.set_len((bytes_needed / 4) as usize) }
-//             break;
-//         }
-//         process_ids.reserve(2 * process_ids.capacity());
-//     }
-//     Ok("".to_owned())
-// }
+
+pub fn def_window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+}
+
+pub fn post_quit_message(msg: i32) {
+    unsafe { PostQuitMessage(msg) }
+}
+
+pub fn post_message(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> BOOL {
+    unsafe { PostMessageW(hwnd, msg, wparam, lparam) }
+}
