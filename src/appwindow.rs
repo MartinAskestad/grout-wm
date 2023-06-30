@@ -1,4 +1,5 @@
 use std::os::raw::c_void;
+use std::sync::OnceLock;
 use windows::w;
 use windows::Win32::{
     Foundation::{HWND, LPARAM, LRESULT, WPARAM},
@@ -18,7 +19,7 @@ use windows::Win32::{
 use crate::win32;
 use crate::wm::{WM, WM_CLOAKED, WM_MINIMIZEEND, WM_MINIMIZESTART, WM_UNCLOAKED};
 
-static mut MY_HWND: HWND = HWND(0);
+static MY_HWND: OnceLock<HWND> = OnceLock::new();
 
 pub struct AppWindow {
     hwnd: HWND,
@@ -60,9 +61,7 @@ impl AppWindow {
             if hwnd.0 == 0 {
                 return Err("Could not create window");
             }
-            unsafe {
-                MY_HWND = hwnd;
-            }
+            let _ = MY_HWND.set(hwnd);
             win32::show_window(hwnd);
             wm.manage(hwnd);
             let shell_hook_res = win32::register_shell_hook_window(hwnd);
@@ -126,16 +125,18 @@ impl AppWindow {
         if idobject != OBJID_WINDOW.0 || (idchild as u32) != CHILDID_SELF || hwnd.0 == 0 {
             return;
         }
-        if event == EVENT_SYSTEM_MINIMIZEEND {
-            PostMessageW(MY_HWND, WM_MINIMIZEEND, WPARAM(0), LPARAM(hwnd.0));
-        }
-        if event == EVENT_SYSTEM_MINIMIZESTART {
-            PostMessageW(MY_HWND, WM_MINIMIZESTART, WPARAM(0), LPARAM(hwnd.0));
-        }
-        if event == EVENT_OBJECT_UNCLOAKED {
-            PostMessageW(MY_HWND, WM_UNCLOAKED, WPARAM(0), LPARAM(hwnd.0));
-        } else if event == EVENT_OBJECT_CLOAKED {
-            PostMessageW(MY_HWND, WM_CLOAKED, WPARAM(0), LPARAM(hwnd.0));
+        if let Some(&my_hwnd) = MY_HWND.get() {
+            if event == EVENT_SYSTEM_MINIMIZEEND {
+                PostMessageW(my_hwnd, WM_MINIMIZEEND, WPARAM(0), LPARAM(hwnd.0));
+            }
+            if event == EVENT_SYSTEM_MINIMIZESTART {
+                PostMessageW(my_hwnd, WM_MINIMIZESTART, WPARAM(0), LPARAM(hwnd.0));
+            }
+            if event == EVENT_OBJECT_UNCLOAKED {
+                PostMessageW(my_hwnd, WM_UNCLOAKED, WPARAM(0), LPARAM(hwnd.0));
+            } else if event == EVENT_OBJECT_CLOAKED {
+                PostMessageW(my_hwnd, WM_CLOAKED, WPARAM(0), LPARAM(hwnd.0));
+            }
         }
     }
 
