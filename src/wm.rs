@@ -1,7 +1,8 @@
 use crate::arrange::spiral_subdivide;
+use crate::config::Config;
 use crate::win32;
 use crate::window::Window;
-use log::{debug, info, error};
+use log::{debug, error, info};
 use windows::Win32::{
     Foundation::{BOOL, HWND, LPARAM, LRESULT, TRUE, WPARAM},
     UI::WindowsAndMessaging::{
@@ -27,21 +28,22 @@ pub const WM_CLOAKED: u32 = WM_USER + 0x0002;
 pub const WM_MINIMIZEEND: u32 = WM_USER + 0x0004;
 pub const WM_MINIMIZESTART: u32 = WM_USER + 0x0008;
 
-#[derive(Debug)]
 pub struct WM {
     managed_windows: Vec<Window>,
     working_area: (i32, i32, i32, i32),
     shell_hook_id: u32,
+    config: Config,
 }
 
 impl WM {
-    pub fn new() -> Result<Self, &'static str> {
+    pub fn new(config: Config) -> Result<Self, &'static str> {
         let working_area = win32::get_working_area()?;
         info!("Screen size is {:?}", working_area);
         Ok(WM {
             managed_windows: Default::default(),
             working_area,
             shell_hook_id: Default::default(),
+            config,
         })
     }
 
@@ -95,49 +97,23 @@ impl WM {
         if title_len == 0 || disabled || no_activate || is_cloaked {
             return false;
         }
-        let titles = [
-            "Windows Shell Experience Host",
-            "Microsoft Text Input Application",
-            "Action center",
-            "New Notification",
-            "Date and Time Information",
-            "Volume Control",
-            "Network Connections",
-            "Cortana",
-            "Start",
-            "Windows Default Lock Screen",
-            "Search",
-        ];
-        if class_name.contains("Windows.UI.Core.CoreWindow")
-            && titles.iter().any(|&t| title.contains(t))
-        {
-            return false;
-        }
-        let classes = [
-            "ForegroundStaging",
-            "ApplicationManager_DesktopShellWindow",
-            "Static",
-            "Scrollbar",
-            "Progman",
-            "WorkerW",
-        ];
-        if classes.iter().any(|&cn| class_name.contains(cn)) {
-            return false;
-        }
-        let processes = [
-            "SearchUI",
-            "ShellExperienceHost",
-            "LockApp",
-            "PeopleExperienceHost",
-            "StartMenuExperienceHost",
-            "SearchApp",
-            "SearchHost",
-            "search",
-            "ScreenClippingHost",
-        ];
-        if let Some(process_name) = process_name {
-            if processes.iter().any(|&p| process_name.contains(p)) {
+        if let Some(titles) = &self.config.windows_ui_core_corewindow {
+            if class_name.contains("Windows.UI.Core.CoreWindow")
+                && titles.iter().any(|t| title.contains(t))
+            {
                 return false;
+            }
+        }
+        if let Some(classes) = &self.config.class_names {
+            if classes.iter().any(|cn| class_name.contains(cn)) {
+                return false;
+            }
+        }
+        if let Some(processes) = &self.config.process_names {
+            if let Some(process_name) = process_name {
+                if processes.iter().any(|p| process_name.contains(p)) {
+                    return false;
+                }
             }
         }
         if (parent.0 == 0 && is_visible) || p_ok {
@@ -220,7 +196,7 @@ impl WM {
                     if let Some(index) = self.managed_windows.iter().position(|&w| w.hwnd == handle)
                     {
                         let t = &mut self.managed_windows[index];
-                    debug!("{:?} is is minimized", t.hwnd);
+                        debug!("{:?} is is minimized", t.hwnd);
                         t.minimized = win32::is_iconic(t.hwnd);
                         if t.minimized {
                             self.arrange();

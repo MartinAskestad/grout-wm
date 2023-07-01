@@ -1,0 +1,29 @@
+Windows.UI.Core.CoreWindow:
+  - Windows Shell Experience Host
+  - Microsoft Text Input Application
+  - Action center
+  - New Notification
+  - Date and Time Information
+  - Volume Control
+  - Network Connections
+  - Cortana
+  - Start
+  - Windows Default Lock Screen
+  - Search
+class_names:
+  - ForegroundStaging
+  - ApplicationManager_DesktopShellWindo
+  - Static
+  - Scrollbar
+  - Progman
+  - WorkerW
+process_names:
+  - SearchUI
+  - ShellExperienceHost
+  - LockApp
+  - PeopleExperienceHost
+  - StartMenuExperienceHost
+  - SearchApp
+  - SearchHost
+  - search
+  - ScreenClippingHost
