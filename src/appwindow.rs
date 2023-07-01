@@ -1,3 +1,4 @@
+use log::{error,info};
 use std::os::raw::c_void;
 use std::sync::OnceLock;
 use windows::w;
@@ -40,6 +41,7 @@ impl AppWindow {
                 ..Default::default()
             };
             if win32::register_class(&wc) == 0 {
+                error!("Could not register class");
                 return Err("Could not register class");
             }
             let hwnd = unsafe {
@@ -59,6 +61,7 @@ impl AppWindow {
                 )
             };
             if hwnd.0 == 0 {
+                error!("Could not create window");
                 return Err("Could not create window");
             }
             let _ = MY_HWND.set(hwnd);
@@ -67,6 +70,7 @@ impl AppWindow {
             wm.arrange();
             let shell_hook_res = win32::register_shell_hook_window(hwnd);
             if !shell_hook_res {
+                error!("Could not register shell hook window");
                 return Err("Could not register shell hook window");
             }
             let shell_hook_id = win32::register_window_messagew(w!("SHELLHOOK"));
@@ -87,6 +91,7 @@ impl AppWindow {
                 minimized_event_hook,
             })
         } else {
+            error!("Could not get instace");
             Err("Could not get instance")
         }
     }
@@ -143,10 +148,12 @@ impl AppWindow {
 
     extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
         if msg == WM_DESTROY {
+            info!("Received WM_DESTROY message");
             win32::post_quit_message(0);
             return LRESULT(0);
         }
         if msg == WM_CREATE {
+            info!("Creating application window");
             let create_struct = lparam.0 as *const CREATESTRUCTA;
             let wm = unsafe { (*create_struct).lpCreateParams as *mut WM };
             unsafe {
