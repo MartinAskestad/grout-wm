@@ -15,6 +15,10 @@ use crate::wm::WM;
 use crate::config::Config;
 
 fn main() -> Result<(), &'static str> {
+    let mutex_handle = win32::get_mutex().unwrap_or_else(|_e|{
+        info!("Can't run multiple instances");
+        std::process::exit(1);
+    });
     let app_name = env!("CARGO_PKG_NAME");
     let app_version = env!("CARGO_PKG_VERSION");
     let mut log_path = env::temp_dir();
@@ -29,5 +33,6 @@ fn main() -> Result<(), &'static str> {
     let wm = binding.enum_windows()?;
     let _appwindow = AppWindow::new(wm)?.handle_messages()?.cleanup();
     info!("quitting");
+    win32::release_mutex(mutex_handle);
     Ok(())
 }
