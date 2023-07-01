@@ -111,6 +111,7 @@ impl AppWindow {
     }
 
     pub fn cleanup(&self) -> Result<&Self, &'static str> {
+        info!("Cleaning up handles");
         unsafe {
             DeregisterShellHookWindow(self.hwnd);
             UnhookWinEvent(self.cloaked_event_hook);
