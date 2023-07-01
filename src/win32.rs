@@ -1,10 +1,15 @@
-use std::mem::{size_of, zeroed};
+use std::{
+    ffi::c_void,
+    mem::{size_of, zeroed},
+};
+
 use windows::{
     core::PCWSTR,
     w,
     Win32::{
         Foundation::{
-            CloseHandle, BOOL, FALSE, HMODULE, HWND, LPARAM, LRESULT, MAX_PATH, RECT, WPARAM,
+            CloseHandle, GetLastError, BOOL, ERROR_ALREADY_EXISTS, FALSE, HANDLE, HMODULE, HWND,
+            LPARAM, LRESULT, MAX_PATH, RECT, TRUE, WPARAM,
         },
         Graphics::Dwm::{
             DwmGetWindowAttribute, DWMWA_CLOAKED, DWM_CLOAKED_APP, DWM_CLOAKED_INHERITED,
@@ -15,18 +20,22 @@ use windows::{
             ProcessStatus::{
                 EnumProcessModules, GetModuleBaseNameW, GetModuleInformation, MODULEINFO,
             },
-            Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ},
+            Threading::{
+                CreateMutexW, OpenProcess, ReleaseMutex, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
+            },
         },
-        UI::Accessibility::{SetWinEventHook, HWINEVENTHOOK, WINEVENTPROC},
-        UI::WindowsAndMessaging::{
-            DefWindowProcW, EnumWindows, FindWindowW, GetClassNameW, GetParent, GetSystemMetrics,
-            GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
-            IsIconic, IsWindowVisible, PostMessageW, PostQuitMessage, RegisterClassW,
-            RegisterShellHookWindow, RegisterWindowMessageW, SetWindowPos, ShowWindow,
-            SystemParametersInfoW, GWL_EXSTYLE, GWL_STYLE, HWND_TOP, SM_CXVIRTUALSCREEN,
-            SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SPI_GETWORKAREA,
-            SWP_NOACTIVATE, SW_SHOWMINNOACTIVE, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
-            WINEVENT_OUTOFCONTEXT, WNDCLASSW, WNDENUMPROC,
+        UI::{
+            Accessibility::{SetWinEventHook, HWINEVENTHOOK, WINEVENTPROC},
+            WindowsAndMessaging::{
+                DefWindowProcW, EnumWindows, FindWindowW, GetClassNameW, GetParent,
+                GetSystemMetrics, GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW,
+                GetWindowThreadProcessId, IsIconic, IsWindowVisible, PostMessageW, PostQuitMessage,
+                RegisterClassW, RegisterShellHookWindow, RegisterWindowMessageW, SetWindowPos,
+                ShowWindow, SystemParametersInfoW, GWL_EXSTYLE, GWL_STYLE, HWND_TOP,
+                SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
+                SPI_GETWORKAREA, SWP_NOACTIVATE, SW_SHOWMINNOACTIVE,
+                SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, WINEVENT_OUTOFCONTEXT, WNDCLASSW, WNDENUMPROC,
+            },
         },
     },
 };
@@ -83,7 +92,7 @@ pub fn get_working_area() -> Result<(i32, i32, i32, i32), &'static str> {
             SystemParametersInfoW(
                 SPI_GETWORKAREA,
                 0,
-                Some(&mut wa as *mut RECT as *mut std::ffi::c_void),
+                Some(&mut wa as *mut RECT as *mut c_void),
                 SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0),
             )
         };
@@ -184,7 +193,7 @@ pub fn get_exe_filename(hwnd: HWND) -> Option<String> {
                 process_handle,
                 module_handle,
                 &mut module_info,
-                std::mem::size_of::<MODULEINFO>().try_into().unwrap(),
+                size_of::<MODULEINFO>().try_into().unwrap(),
             ) == FALSE
             {
                 return None;
@@ -215,4 +224,21 @@ pub fn post_quit_message(msg: i32) {
 
 pub fn post_message(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> BOOL {
     unsafe { PostMessageW(hwnd, msg, wparam, lparam) }
+}
+
+pub fn get_mutex() -> Result<HANDLE, &'static str> {
+    let mutex_name = w!("wm-mutex");
+    let mutex_handle = unsafe { CreateMutexW(None, TRUE, mutex_name) };
+    if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
+        Err("Mutex already exists")
+    } else {
+        Ok(mutex_handle.unwrap())
+    }
+}
+
+pub fn release_mutex(handle: HANDLE) {
+    unsafe {
+        ReleaseMutex(handle);
+        CloseHandle(handle);
+    }
 }

@@ -6,7 +6,7 @@ use log::{debug, error, info};
 use windows::Win32::{
     Foundation::{BOOL, HWND, LPARAM, LRESULT, TRUE, WPARAM},
     UI::WindowsAndMessaging::{
-        DefWindowProcW, HSHELL_WINDOWACTIVATED, HSHELL_WINDOWCREATED, HSHELL_WINDOWDESTROYED,
+        DefWindowProcW, HSHELL_WINDOWCREATED, HSHELL_WINDOWDESTROYED,
         WM_USER,
     },
 };
