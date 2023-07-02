@@ -7,7 +7,8 @@ use windows::Win32::{
     },
 };
 
-use crate::{arrange::spiral_subdivide, config::Config, win32, window::Window, virtual_desktop::VirtualDesktopManager};
+use grout_wm::Result;
+use crate::{arrange::spiral_subdivide, config::Config, win32::{self, VirtualDesktopManager}, window::Window};
 
 macro_rules! any {
     ($xs:expr, $x:expr) => {
@@ -26,33 +27,6 @@ pub const WM_CLOAKED: u32 = WM_USER + 0x0002;
 pub const WM_MINIMIZEEND: u32 = WM_USER + 0x0004;
 pub const WM_MINIMIZESTART: u32 = WM_USER + 0x0008;
 
-#[derive(Debug)]
-pub enum WMError {
-    WMError(String),
-}
-
-impl std::error::Error for WMError {}
-
-impl std::fmt::Display for WMError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            WMError::WMError(msg) => write!(f, "Window manager error: {}", msg),
-        }
-    }
-}
-
-impl From<&'static str> for WMError {
-    fn from(err: &'static str) -> Self {
-        WMError::WMError(String::from(err))
-    }
-}
-
-impl From<windows::core::Error> for WMError {
-    fn from(err: windows::core::Error) -> Self {
-        WMError::WMError(err.to_string())
-    }
-}
-
 pub struct WM {
     managed_windows: Vec<Window>,
     working_area: (i32, i32, i32, i32),
@@ -62,7 +36,7 @@ pub struct WM {
 }
 
 impl WM {
-    pub fn new(config: Config) -> Result<Self, WMError> {
+    pub fn new(config: Config) -> Result<Self> {
         info!("Create new instance of window manager");
         let working_area = win32::get_working_area()?;
         info!("Working area is {:?}", working_area);
@@ -148,17 +122,14 @@ impl WM {
         self.shell_hook_id = shell_hook_id;
     }
 
-    fn unmanage_or_pause(&mut self, hwnd: HWND) {
+    fn unmanage(&mut self, hwnd: HWND) {
         if !any!(self.managed_windows, hwnd) {
             return
         }
-        info!("is on virtual desktop {:?}", self.virtual_desktop.is_window_on_current_desktop(hwnd));
-    }
-
-    fn unmanage(&mut self, hwnd: HWND) {
-        if any!(self.managed_windows, hwnd) {
-            info!("Unmanage {:#?}", self.get_window(hwnd));
-            self.managed_windows.retain(|w| w.hwnd != hwnd)
+        let is_on_desktop = self.virtual_desktop.is_window_on_current_desktop(hwnd).unwrap_or(false);
+        if is_on_desktop {
+            info!("unmanage {:#?}", self.get_window(hwnd));
+            self.managed_windows.retain(|w| w.hwnd != hwnd);
         }
     }
 
@@ -169,8 +140,9 @@ impl WM {
             .into_iter()
             .filter(|w| {
                 let min = win32::is_iconic(w.hwnd);
-                let visible = win32::is_window_visible(w.hwnd);
-                !min && visible
+                // let visible = win32::is_window_visible(w.hwnd);
+                let is_on_desktop = self.virtual_desktop.is_window_on_current_desktop(w.hwnd).unwrap_or(false);
+                !min && is_on_desktop
             })
             .collect();
         let number_of_windows = windows_on_screen.len();
@@ -194,8 +166,8 @@ impl WM {
             (WM_CLOAKED, _) => {
                 if managed_window.is_some() {
                     debug!("Cloaked: {managed_window:#?}");
-                    // self.unmanage(handle);
-                    self.unmanage_or_pause(handle);
+                    self.unmanage(handle);
+                    // self.unmanage_or_pause(handle);
                     self.arrange();
                 }
             }
@@ -237,8 +209,8 @@ impl WM {
             (id, HSHELL_WINDOWDESTROYED) if id == self.shell_hook_id => {
                 if managed_window.is_some() {
                     debug!("{handle:?} is destroyed");
-                    // self.unmanage(handle);
-                    self.unmanage_or_pause(handle);
+                    self.unmanage(handle);
+                    // self.unmanage_or_pause(handle);
                     self.arrange();
                 }
             }
@@ -247,13 +219,13 @@ impl WM {
         LRESULT(0)
     }
 
-    pub fn enum_windows(&mut self) -> Result<&mut Self, &'static str> {
+    pub fn enum_windows(&mut self) -> Result<&mut Self> {
         let self_ptr = LPARAM(self as *mut Self as isize);
         if win32::enum_windows(Some(Self::scan), self_ptr) {
             Ok(self)
         } else {
             error!("Can not enum windows");
-            Err("Can not enum windows")
+            Err("Can not enum windows".into())
         }
     }
 
