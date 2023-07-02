@@ -3,6 +3,7 @@ use std::{
     mem::{size_of, zeroed},
 };
 
+use log::info;
 use windows::{
     core::PCWSTR,
     w,
@@ -22,7 +23,7 @@ use windows::{
             },
             Threading::{
                 CreateMutexW, OpenProcess, ReleaseMutex, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
-            },
+            }, Com::{CoUninitialize, CoInitialize, CLSCTX_ALL, CoCreateInstance},
         },
         UI::{
             Accessibility::{SetWinEventHook, HWINEVENTHOOK, WINEVENTPROC},
@@ -36,11 +37,29 @@ use windows::{
                 SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SPI_GETWORKAREA, SWP_NOACTIVATE,
                 SW_SHOWMINNOACTIVE, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, WINDOW_LONG_PTR_INDEX,
                 WINEVENT_OUTOFCONTEXT, WNDCLASSW, WNDENUMPROC,
-            },
+            }, Shell::{IVirtualDesktopManager, VirtualDesktopManager as VirtualDesktopManager_ID},
         },
     },
 };
 
+use grout_wm::Result;
+
+pub struct Win32Com;
+
+impl Win32Com {
+    pub fn new() -> Result<Self> {
+        info!("Initialize COM");
+        unsafe { CoInitialize(None)?; }
+        Ok(Win32Com)
+    }
+}
+
+impl Drop for Win32Com {
+    fn drop(&mut self) {
+        info!("Uninitializing COM");
+        unsafe { CoUninitialize(); }
+    }
+}
 pub fn is_cloaked(hwnd: HWND) -> bool {
     let mut cloaked: u32 = 0;
     let res = unsafe {
@@ -88,7 +107,7 @@ pub fn get_window_text_length(hwnd: HWND) -> i32 {
     unsafe { GetWindowTextLengthW(hwnd) }
 }
 
-pub fn get_working_area() -> Result<(i32, i32, i32, i32), &'static str> {
+pub fn get_working_area() -> Result<(i32, i32, i32, i32)> {
     let hwnd = unsafe { FindWindowW(w!("Shell_TrayWnd"), None) };
     let is_visible = is_window_visible(hwnd);
     if hwnd.0 != 0 && is_visible {
@@ -102,7 +121,7 @@ pub fn get_working_area() -> Result<(i32, i32, i32, i32), &'static str> {
             )
         };
         if res == FALSE {
-            return Err("");
+            return Err("".into());
         }
         Ok((wa.left, wa.top, wa.right - wa.left, wa.bottom - wa.top))
     } else {
@@ -231,11 +250,11 @@ pub fn post_message(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> BOO
     unsafe { PostMessageW(hwnd, msg, wparam, lparam) }
 }
 
-pub fn get_mutex() -> Result<HANDLE, &'static str> {
+pub fn get_mutex() -> Result<HANDLE> {
     let mutex_name = w!("wm-mutex");
     let mutex_handle = unsafe { CreateMutexW(None, TRUE, mutex_name) };
     if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
-        Err("Mutex already exists")
+        Err("Mutex already exists".into())
     } else {
         Ok(mutex_handle.unwrap())
     }
@@ -254,4 +273,25 @@ pub fn get_window(hwnd: HWND, ucmd: GET_WINDOW_CMD) -> HWND {
 
 pub fn set_window_long_ptr(hwnd: HWND, nindex: WINDOW_LONG_PTR_INDEX, dwnewlong: isize) -> isize {
     unsafe { SetWindowLongPtrW(hwnd, nindex, dwnewlong) }
+}
+
+// =====
+// Virtual desktop
+// =====
+
+pub struct VirtualDesktopManager(IVirtualDesktopManager);
+
+impl VirtualDesktopManager {
+    pub fn new() -> Result<Self> {
+        info!("Instanciate VirtualDesktopManager");
+        unsafe { CoInitialize(None)?; }
+        let virtual_desktop_managr =
+            unsafe { CoCreateInstance(&VirtualDesktopManager_ID, None, CLSCTX_ALL)? };
+        Ok(Self(virtual_desktop_managr))
+    }
+
+    pub fn is_window_on_current_desktop(&self, hwnd: HWND) -> windows::core::Result<bool> {
+        let is_on_desktop = unsafe { self.0.IsWindowOnCurrentVirtualDesktop(hwnd)? };
+        Ok(is_on_desktop.as_bool())
+    }
 }
