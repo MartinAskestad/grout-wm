@@ -27,7 +27,7 @@ pub const WM_CLOAKED: u32 = WM_USER + 0x0002;
 pub const WM_MINIMIZEEND: u32 = WM_USER + 0x0004;
 pub const WM_MINIMIZESTART: u32 = WM_USER + 0x0008;
 
-pub struct WM {
+pub struct WindowManager {
     managed_windows: Vec<Window>,
     working_area: (i32, i32, i32, i32),
     shell_hook_id: u32,
@@ -35,12 +35,12 @@ pub struct WM {
     virtual_desktop: VirtualDesktopManager,
 }
 
-impl WM {
+impl WindowManager {
     pub fn new(config: Config) -> Result<Self> {
         info!("Create new instance of window manager");
         let working_area = win32::get_working_area()?;
         info!("Working area is {:?}", working_area);
-        Ok(WM {
+        Ok(WindowManager {
             managed_windows: Default::default(),
             working_area,
             shell_hook_id: Default::default(),
