@@ -1,11 +1,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use log::{error, info, LevelFilter};
+use wm::WMError;
 use std::env;
 
 mod appwindow;
 mod arrange;
 mod config;
+mod virtual_desktop;
 mod win32;
 mod window;
 mod wm;
@@ -14,7 +16,7 @@ use crate::appwindow::AppWindow;
 use crate::wm::WM;
 use crate::config::Config;
 
-fn main() -> Result<(), &'static str> {
+fn main() -> Result<(), WMError> {
     let mutex_handle = win32::get_mutex().unwrap_or_else(|_e|{
         error!("Can't run multiple instances");
         std::process::exit(1);
