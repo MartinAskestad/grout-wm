@@ -7,7 +7,7 @@ use windows::Win32::{
     },
 };
 
-use crate::{arrange::spiral_subdivide, config::Config, win32, window::Window};
+use crate::{arrange::spiral_subdivide, config::Config, win32, window::Window, virtual_desktop::VirtualDesktopManager};
 
 macro_rules! any {
     ($xs:expr, $x:expr) => {
@@ -26,15 +26,43 @@ pub const WM_CLOAKED: u32 = WM_USER + 0x0002;
 pub const WM_MINIMIZEEND: u32 = WM_USER + 0x0004;
 pub const WM_MINIMIZESTART: u32 = WM_USER + 0x0008;
 
+#[derive(Debug)]
+pub enum WMError {
+    WMError(String),
+}
+
+impl std::error::Error for WMError {}
+
+impl std::fmt::Display for WMError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            WMError::WMError(msg) => write!(f, "Window manager error: {}", msg),
+        }
+    }
+}
+
+impl From<&'static str> for WMError {
+    fn from(err: &'static str) -> Self {
+        WMError::WMError(String::from(err))
+    }
+}
+
+impl From<windows::core::Error> for WMError {
+    fn from(err: windows::core::Error) -> Self {
+        WMError::WMError(err.to_string())
+    }
+}
+
 pub struct WM {
     managed_windows: Vec<Window>,
     working_area: (i32, i32, i32, i32),
     shell_hook_id: u32,
     config: Config,
+    virtual_desktop: VirtualDesktopManager,
 }
 
 impl WM {
-    pub fn new(config: Config) -> Result<Self, &'static str> {
+    pub fn new(config: Config) -> Result<Self, WMError> {
         info!("Create new instance of window manager");
         let working_area = win32::get_working_area()?;
         info!("Working area is {:?}", working_area);
@@ -43,6 +71,7 @@ impl WM {
             working_area,
             shell_hook_id: Default::default(),
             config,
+            virtual_desktop: VirtualDesktopManager::new()?,
         })
     }
 
@@ -119,6 +148,13 @@ impl WM {
         self.shell_hook_id = shell_hook_id;
     }
 
+    fn unmanage_or_pause(&mut self, hwnd: HWND) {
+        if !any!(self.managed_windows, hwnd) {
+            return
+        }
+        info!("is on virtual desktop {:?}", self.virtual_desktop.is_window_on_current_desktop(hwnd));
+    }
+
     fn unmanage(&mut self, hwnd: HWND) {
         if any!(self.managed_windows, hwnd) {
             info!("Unmanage {:#?}", self.get_window(hwnd));
@@ -158,7 +194,8 @@ impl WM {
             (WM_CLOAKED, _) => {
                 if managed_window.is_some() {
                     debug!("Cloaked: {managed_window:#?}");
-                    self.unmanage(handle);
+                    // self.unmanage(handle);
+                    self.unmanage_or_pause(handle);
                     self.arrange();
                 }
             }
@@ -200,7 +237,8 @@ impl WM {
             (id, HSHELL_WINDOWDESTROYED) if id == self.shell_hook_id => {
                 if managed_window.is_some() {
                     debug!("{handle:?} is destroyed");
-                    self.unmanage(handle);
+                    // self.unmanage(handle);
+                    self.unmanage_or_pause(handle);
                     self.arrange();
                 }
             }
