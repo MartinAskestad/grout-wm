@@ -28,13 +28,14 @@ use windows::{
             Accessibility::{SetWinEventHook, HWINEVENTHOOK, WINEVENTPROC},
             WindowsAndMessaging::{
                 DefWindowProcW, EnumWindows, FindWindowW, GetClassNameW, GetParent,
-                GetSystemMetrics, GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW,
-                GetWindowThreadProcessId, IsIconic, IsWindowVisible, PostMessageW, PostQuitMessage,
-                RegisterClassW, RegisterShellHookWindow, RegisterWindowMessageW, SetWindowPos,
-                ShowWindow, SystemParametersInfoW, GWL_EXSTYLE, GWL_STYLE, HWND_TOP,
-                SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
-                SPI_GETWORKAREA, SWP_NOACTIVATE, SW_SHOWMINNOACTIVE,
-                SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, WINEVENT_OUTOFCONTEXT, WNDCLASSW, WNDENUMPROC, GetWindow, GET_WINDOW_CMD,
+                GetSystemMetrics, GetWindow, GetWindowLongPtrW, GetWindowTextLengthW,
+                GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindowVisible, PostMessageW,
+                PostQuitMessage, RegisterClassW, RegisterShellHookWindow, RegisterWindowMessageW,
+                SetWindowLongPtrW, SetWindowPos, ShowWindow, SystemParametersInfoW, GET_WINDOW_CMD,
+                GWL_EXSTYLE, GWL_STYLE, HWND_TOP, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN,
+                SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SPI_GETWORKAREA, SWP_NOACTIVATE,
+                SW_SHOWMINNOACTIVE, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, WINDOW_LONG_PTR_INDEX,
+                WINEVENT_OUTOFCONTEXT, WNDCLASSW, WNDENUMPROC,
             },
         },
     },
@@ -65,6 +66,10 @@ pub fn is_iconic(hwnd: HWND) -> bool {
 
 pub fn get_parent(hwnd: HWND) -> HWND {
     unsafe { GetParent(hwnd) }
+}
+
+pub fn get_window_long_ptr(hwnd: HWND, nindex: WINDOW_LONG_PTR_INDEX) -> isize {
+    unsafe { GetWindowLongPtrW(hwnd, nindex) }
 }
 
 pub fn get_window_style(hwnd: HWND) -> u32 {
@@ -245,4 +250,8 @@ pub fn release_mutex(handle: HANDLE) {
 
 pub fn get_window(hwnd: HWND, ucmd: GET_WINDOW_CMD) -> HWND {
     unsafe { GetWindow(hwnd, ucmd) }
+}
+
+pub fn set_window_long_ptr(hwnd: HWND, nindex: WINDOW_LONG_PTR_INDEX, dwnewlong: isize) -> isize {
+    unsafe { SetWindowLongPtrW(hwnd, nindex, dwnewlong) }
 }

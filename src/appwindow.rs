@@ -1,24 +1,27 @@
-use log::{error,info};
-use std::os::raw::c_void;
-use std::sync::OnceLock;
-use windows::w;
-use windows::Win32::{
-    Foundation::{HWND, LPARAM, LRESULT, WPARAM},
-    Graphics::Gdi::{COLOR_WINDOW, HBRUSH},
-    UI::{
-        Accessibility::{UnhookWinEvent, HWINEVENTHOOK},
-        WindowsAndMessaging::{
-            CreateWindowExW, DeregisterShellHookWindow, GetWindowLongPtrW, SetWindowLongPtrW,
-            CHILDID_SELF, CREATESTRUCTA, CW_USEDEFAULT, EVENT_OBJECT_CLOAKED,
-            EVENT_OBJECT_UNCLOAKED, EVENT_SYSTEM_MINIMIZEEND, EVENT_SYSTEM_MINIMIZESTART,
-            GWLP_USERDATA, OBJID_WINDOW, WINDOW_EX_STYLE, WM_CREATE, WM_DESTROY, WNDCLASSW,
-            WS_OVERLAPPEDWINDOW,
+use std::{ffi::c_void, sync::OnceLock};
+
+use log::{error, info};
+use windows::{
+    w,
+    Win32::{
+        Foundation::{HWND, LPARAM, LRESULT, WPARAM},
+        Graphics::Gdi::{COLOR_WINDOW, HBRUSH},
+        UI::{
+            Accessibility::{UnhookWinEvent, HWINEVENTHOOK},
+            WindowsAndMessaging::{
+                CreateWindowExW, DeregisterShellHookWindow, CHILDID_SELF, CREATESTRUCTA,
+                CW_USEDEFAULT, EVENT_OBJECT_CLOAKED, EVENT_OBJECT_UNCLOAKED,
+                EVENT_SYSTEM_MINIMIZEEND, EVENT_SYSTEM_MINIMIZESTART, GWLP_USERDATA, OBJID_WINDOW,
+                WINDOW_EX_STYLE, WM_CREATE, WM_DESTROY, WNDCLASSW, WS_OVERLAPPEDWINDOW,
+            },
         },
     },
 };
 
-use crate::win32;
-use crate::wm::{WM, WM_CLOAKED, WM_MINIMIZEEND, WM_MINIMIZESTART, WM_UNCLOAKED};
+use crate::{
+    win32,
+    wm::{WM, WM_CLOAKED, WM_MINIMIZEEND, WM_MINIMIZESTART, WM_UNCLOAKED},
+};
 
 static MY_HWND: OnceLock<HWND> = OnceLock::new();
 
@@ -157,11 +160,9 @@ impl AppWindow {
             info!("Creating application window");
             let create_struct = lparam.0 as *const CREATESTRUCTA;
             let wm = unsafe { (*create_struct).lpCreateParams as *mut WM };
-            unsafe {
-                SetWindowLongPtrW(hwnd, GWLP_USERDATA, wm as _);
-            }
+            win32::set_window_long_ptr(hwnd, GWLP_USERDATA, wm as _);
         }
-        let wm = unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut WM };
+        let wm = win32::get_window_long_ptr(hwnd, GWLP_USERDATA) as *mut WM;
         if !wm.is_null() {
             return unsafe { (*wm).message_loop(hwnd, msg, wparam, lparam) };
         }

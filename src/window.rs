@@ -1,4 +1,5 @@
-use std::fmt;
+use core::fmt;
+
 use windows::Win32::Foundation::HWND;
 
 use crate::win32;
