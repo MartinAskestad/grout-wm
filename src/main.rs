@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use log::{info, LevelFilter};
+use log::{error, info, LevelFilter};
 use std::env;
 
 mod appwindow;
@@ -16,7 +16,7 @@ use crate::config::Config;
 
 fn main() -> Result<(), &'static str> {
     let mutex_handle = win32::get_mutex().unwrap_or_else(|_e|{
-        info!("Can't run multiple instances");
+        error!("Can't run multiple instances");
         std::process::exit(1);
     });
     let app_name = env!("CARGO_PKG_NAME");

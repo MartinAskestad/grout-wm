@@ -35,8 +35,9 @@ pub struct WM {
 
 impl WM {
     pub fn new(config: Config) -> Result<Self, &'static str> {
+        info!("Create new instance of window manager");
         let working_area = win32::get_working_area()?;
-        info!("Screen size is {:?}", working_area);
+        info!("Working area is {:?}", working_area);
         Ok(WM {
             managed_windows: Default::default(),
             working_area,
@@ -54,12 +55,12 @@ impl WM {
 
     pub fn manage(&mut self, hwnd: HWND) -> Option<Window> {
         if let Some(w) = self.get_window(hwnd) {
-            info!("manage {:?}", w);
+            info!("Window already managed {:?}", w);
             Some(w)
         } else {
             let w = Window::new(hwnd);
             self.managed_windows.push(w);
-            info!("manage {:?}", w);
+            info!("Manage new window {:?}", w);
             Some(w)
         }
     }
@@ -82,30 +83,36 @@ impl WM {
         let title_len = win32::get_window_text_length(hwnd);
         let owner = win32::get_window(hwnd, GW_OWNER);
         if title_len == 0 || is_disabled {
+            info!("Window {title} is not suitable to manage");
             return false;
         }
         if let Some(titles) = &self.config.windows_ui_core_corewindow {
             if class_name.contains("Windows.UI.Core.CoreWindow")
                 && titles.iter().any(|t| title.contains(t))
             {
+            info!("Window {title} is not suitable to manage");
                 return false;
             }
         }
         if let Some(classes) = &self.config.class_names {
             if classes.iter().any(|cn| class_name.contains(cn)) {
+            info!("Window {title} is not suitable to manage");
                 return false;
             }
         }
         if let Some(processes) = &self.config.process_names {
             if let Some(process_name) = process_name {
                 if processes.iter().any(|p| process_name.contains(p)) {
+            info!("Window {title} is not suitable to manage");
                     return false;
                 }
             }
         }
         let is_app_window = is_visible && !no_activate && !is_child;
         let is_alt_tab_window = !(is_tool || owner.0 != 0);
-        !is_cloaked && is_app_window && is_alt_tab_window
+        let retval = !is_cloaked && is_app_window && is_alt_tab_window;
+        info!("Is manageable {retval} - {title}");
+        retval
     }
 
     pub fn set_shell_hook_id(&mut self, shell_hook_id: u32) {
@@ -114,7 +121,7 @@ impl WM {
 
     fn unmanage(&mut self, hwnd: HWND) {
         if any!(self.managed_windows, hwnd) {
-            info!("unmanage {hwnd:?}");
+            info!("Unmanage {:#?}", self.get_window(hwnd));
             self.managed_windows.retain(|w| w.hwnd != hwnd)
         }
     }
@@ -126,8 +133,8 @@ impl WM {
             .into_iter()
             .filter(|w| {
                 let min = win32::is_iconic(w.hwnd);
-                // let visible = win32::is_window_visible(w.hwnd);
-                !min //&& visible
+                let visible = win32::is_window_visible(w.hwnd);
+                !min && visible
             })
             .collect();
         let number_of_windows = windows_on_screen.len();
@@ -150,7 +157,7 @@ impl WM {
         match (msg, wmsg) {
             (WM_CLOAKED, _) => {
                 if managed_window.is_some() {
-                    debug!("{handle:?} is cloaked");
+                    debug!("Cloaked: {managed_window:#?}");
                     self.unmanage(handle);
                     self.arrange();
                 }
@@ -165,7 +172,7 @@ impl WM {
             (WM_MINIMIZEEND, _) => {
                 if let Some(index) = self.managed_windows.iter().position(|&w| w.hwnd == handle) {
                     let sel = &mut self.managed_windows[index];
-                    debug!("{:?} is restored", sel.hwnd);
+                    debug!("Restored: {sel:#?}");
                     sel.minimized = false;
                     self.arrange();
                 }
@@ -175,7 +182,7 @@ impl WM {
                     if let Some(index) = self.managed_windows.iter().position(|&w| w.hwnd == handle)
                     {
                         let t = &mut self.managed_windows[index];
-                        debug!("{:?} is is minimized", t.hwnd);
+                        debug!("Minimized {managed_window:#?}");
                         t.minimized = win32::is_iconic(t.hwnd);
                         if t.minimized {
                             self.arrange();
