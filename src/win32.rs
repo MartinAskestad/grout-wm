@@ -34,7 +34,7 @@ use windows::{
                 ShowWindow, SystemParametersInfoW, GWL_EXSTYLE, GWL_STYLE, HWND_TOP,
                 SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
                 SPI_GETWORKAREA, SWP_NOACTIVATE, SW_SHOWMINNOACTIVE,
-                SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, WINEVENT_OUTOFCONTEXT, WNDCLASSW, WNDENUMPROC,
+                SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, WINEVENT_OUTOFCONTEXT, WNDCLASSW, WNDENUMPROC, GetWindow, GET_WINDOW_CMD,
             },
         },
     },
@@ -241,4 +241,8 @@ pub fn release_mutex(handle: HANDLE) {
         ReleaseMutex(handle);
         CloseHandle(handle);
     }
+}
+
+pub fn get_window(hwnd: HWND, ucmd: GET_WINDOW_CMD) -> HWND {
+    unsafe { GetWindow(hwnd, ucmd) }
 }

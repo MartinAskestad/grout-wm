@@ -6,8 +6,7 @@ use log::{debug, error, info};
 use windows::Win32::{
     Foundation::{BOOL, HWND, LPARAM, LRESULT, TRUE, WPARAM},
     UI::WindowsAndMessaging::{
-        DefWindowProcW, HSHELL_WINDOWCREATED, HSHELL_WINDOWDESTROYED,
-        WM_USER,
+        DefWindowProcW, HSHELL_WINDOWCREATED, HSHELL_WINDOWDESTROYED, WM_USER,
     },
 };
 
@@ -68,34 +67,27 @@ impl WM {
 
     fn is_manageable(&mut self, hwnd: HWND) -> bool {
         use windows::Win32::UI::WindowsAndMessaging::{
-            WS_DISABLED, WS_EX_APPWINDOW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+            GW_OWNER, WS_CHILD, WS_DISABLED, WS_EX_APPWINDOW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
         };
-        if hwnd.0 == 0 {
-            return false;
-        }
         if any!(self.managed_windows, hwnd) {
             return true;
         }
-        let parent = win32::get_parent(hwnd);
-        let p_ok = parent.0 != 0 && self.is_manageable(parent);
         let style = win32::get_window_style(hwnd);
         let exstyle = win32::get_window_exstyle(hwnd);
-        let is_tool = has_flag!(exstyle, WS_EX_TOOLWINDOW.0);
-        let disabled = has_flag!(style, WS_DISABLED.0);
         let is_app = has_flag!(exstyle, WS_EX_APPWINDOW.0);
-        let no_activate = has_flag!(exstyle, WS_EX_NOACTIVATE.0);
-        let is_visible = win32::is_window_visible(hwnd);
+        let is_child = has_flag!(style, WS_CHILD.0);
         let is_cloaked = win32::is_cloaked(hwnd);
+        let is_disabled = has_flag!(style, WS_DISABLED.0);
+        let is_tool = has_flag!(exstyle, WS_EX_TOOLWINDOW.0);
+        let is_visible = win32::is_window_visible(hwnd);
+        let no_activate = has_flag!(exstyle, WS_EX_NOACTIVATE.0);
         let title = win32::get_window_text(hwnd);
         let class_name = win32::get_window_classname(hwnd);
         let process_name = win32::get_exe_filename(hwnd);
-        if p_ok && !any!(self.managed_windows, parent) {
-            self.manage(parent);
-        }
-        debug!("is_manageable: {}, hwnd:{:?}, visible: {}, parent: {:?}, parent ok: {}, is tool: {}, app: {}, no activate: {}", title, hwnd, is_visible, parent, p_ok, is_tool, is_app, no_activate);
         let title_len = win32::get_window_text_length(hwnd);
-        if title_len == 0 || disabled || no_activate || is_cloaked {
-            return false;
+        let owner = win32::get_window(hwnd, GW_OWNER);
+        if title_len == 0 || is_disabled {
+            return false
         }
         if let Some(titles) = &self.config.windows_ui_core_corewindow {
             if class_name.contains("Windows.UI.Core.CoreWindow")
@@ -116,17 +108,15 @@ impl WM {
                 }
             }
         }
-        if (parent.0 == 0 && is_visible) || p_ok {
-            if !is_tool || parent.0 == 0 || p_ok {
-                debug!("{:?}", Window::new(hwnd));
-                return true;
-            }
-            if is_app && parent.0 != 0 {
-                debug!("{:?}", Window::new(hwnd));
-                return true;
-            }
-        }
-        false
+        let is_app_window = is_visible && !no_activate && !is_child;
+        let is_alt_tab_window = if is_tool || owner.0 != 0 {
+            false
+        } else if is_app {
+            true
+        } else {
+            true
+        };
+        !is_cloaked && is_app_window && is_alt_tab_window
     }
 
     pub fn set_shell_hook_id(&mut self, shell_hook_id: u32) {
