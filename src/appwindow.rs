@@ -20,7 +20,7 @@ use windows::{
 
 use crate::{
     win32,
-    wm::{WM, WM_CLOAKED, WM_MINIMIZEEND, WM_MINIMIZESTART, WM_UNCLOAKED},
+    windowmanager::{WindowManager, WM_CLOAKED, WM_MINIMIZEEND, WM_MINIMIZESTART, WM_UNCLOAKED},
 };
 
 static MY_HWND: OnceLock<HWND> = OnceLock::new();
@@ -32,7 +32,7 @@ pub struct AppWindow {
 }
 
 impl AppWindow {
-    pub fn new(wm: &mut WM) -> Result<Self, &'static str> {
+    pub fn new(wm: &mut WindowManager) -> Result<Self, &'static str> {
         let instance_res = win32::get_module_handle();
         if let Ok(instance) = instance_res {
             let windows_class = w!("grout-wm.window");
@@ -159,10 +159,10 @@ impl AppWindow {
         if msg == WM_CREATE {
             info!("Creating application window");
             let create_struct = lparam.0 as *const CREATESTRUCTA;
-            let wm = unsafe { (*create_struct).lpCreateParams as *mut WM };
+            let wm = unsafe { (*create_struct).lpCreateParams as *mut WindowManager };
             win32::set_window_long_ptr(hwnd, GWLP_USERDATA, wm as _);
         }
-        let wm = win32::get_window_long_ptr(hwnd, GWLP_USERDATA) as *mut WM;
+        let wm = win32::get_window_long_ptr(hwnd, GWLP_USERDATA) as *mut WindowManager;
         if !wm.is_null() {
             return unsafe { (*wm).message_loop(hwnd, msg, wparam, lparam) };
         }

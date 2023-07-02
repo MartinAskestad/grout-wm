@@ -10,10 +10,10 @@ mod arrange;
 mod config;
 mod win32;
 mod window;
-mod wm;
+mod windowmanager;
 
 use crate::appwindow::AppWindow;
-use crate::wm::WM;
+use crate::windowmanager::WindowManager;
 use crate::config::Config;
 
 fn main() -> Result<()> {
@@ -35,7 +35,7 @@ fn main() -> Result<()> {
         std::process::exit(1);
     });
     let config = Config::load_default()?;
-    let mut binding = WM::new(config)?;
+    let mut binding = WindowManager::new(config)?;
     let wm = binding.enum_windows()?;
     let _appwindow = AppWindow::new(wm)?.handle_messages()?.cleanup();
     info!("quitting");
