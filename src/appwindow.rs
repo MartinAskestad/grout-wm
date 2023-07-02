@@ -18,6 +18,8 @@ use windows::{
     },
 };
 
+use grout_wm::Result;
+
 use crate::{
     win32,
     windowmanager::{WindowManager, WM_CLOAKED, WM_MINIMIZEEND, WM_MINIMIZESTART, WM_UNCLOAKED},
@@ -32,7 +34,7 @@ pub struct AppWindow {
 }
 
 impl AppWindow {
-    pub fn new(wm: &mut WindowManager) -> Result<Self, &'static str> {
+    pub fn new(wm: &mut WindowManager) -> Result<Self> {
         let instance_res = win32::get_module_handle();
         if let Ok(instance) = instance_res {
             let windows_class = w!("grout-wm.window");
@@ -45,7 +47,7 @@ impl AppWindow {
             };
             if win32::register_class(&wc) == 0 {
                 error!("Could not register class");
-                return Err("Could not register class");
+                return Err("Could not register class".into());
             }
             let hwnd = unsafe {
                 CreateWindowExW(
@@ -65,7 +67,7 @@ impl AppWindow {
             };
             if hwnd.0 == 0 {
                 error!("Could not create window");
-                return Err("Could not create window");
+                return Err("Could not create window".into());
             }
             let _ = MY_HWND.set(hwnd);
             win32::show_window(hwnd);
@@ -74,7 +76,7 @@ impl AppWindow {
             let shell_hook_res = win32::register_shell_hook_window(hwnd);
             if !shell_hook_res {
                 error!("Could not register shell hook window");
-                return Err("Could not register shell hook window");
+                return Err("Could not register shell hook window".into());
             }
             let shell_hook_id = win32::register_window_messagew(w!("SHELLHOOK"));
             wm.set_shell_hook_id(shell_hook_id);
@@ -95,11 +97,11 @@ impl AppWindow {
             })
         } else {
             error!("Could not get instace");
-            Err("Could not get instance")
+            Err("Could not get instance".into())
         }
     }
 
-    pub fn handle_messages(&self) -> Result<&Self, &'static str> {
+    pub fn handle_messages(&self) -> Result<&Self> {
         use windows::Win32::UI::WindowsAndMessaging::{
             DispatchMessageW, GetMessageW, TranslateMessage, MSG,
         };
@@ -113,7 +115,7 @@ impl AppWindow {
         Ok(self)
     }
 
-    pub fn cleanup(&self) -> Result<&Self, &'static str> {
+    pub fn cleanup(&self) -> Result<&Self> {
         info!("Cleaning up handles");
         unsafe {
             DeregisterShellHookWindow(self.hwnd);
