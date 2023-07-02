@@ -1,14 +1,13 @@
-use crate::arrange::spiral_subdivide;
-use crate::config::Config;
-use crate::win32;
-use crate::window::Window;
 use log::{debug, error, info};
 use windows::Win32::{
     Foundation::{BOOL, HWND, LPARAM, LRESULT, TRUE, WPARAM},
     UI::WindowsAndMessaging::{
-        DefWindowProcW, HSHELL_WINDOWCREATED, HSHELL_WINDOWDESTROYED, WM_USER,
+        GW_OWNER, HSHELL_WINDOWCREATED, HSHELL_WINDOWDESTROYED, WM_USER, WS_CHILD, WS_DISABLED,
+        WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
     },
 };
+
+use crate::{arrange::spiral_subdivide, config::Config, win32, window::Window};
 
 macro_rules! any {
     ($xs:expr, $x:expr) => {
@@ -66,15 +65,11 @@ impl WM {
     }
 
     fn is_manageable(&mut self, hwnd: HWND) -> bool {
-        use windows::Win32::UI::WindowsAndMessaging::{
-            GW_OWNER, WS_CHILD, WS_DISABLED, WS_EX_APPWINDOW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
-        };
         if any!(self.managed_windows, hwnd) {
             return true;
         }
         let style = win32::get_window_style(hwnd);
         let exstyle = win32::get_window_exstyle(hwnd);
-        let is_app = has_flag!(exstyle, WS_EX_APPWINDOW.0);
         let is_child = has_flag!(style, WS_CHILD.0);
         let is_cloaked = win32::is_cloaked(hwnd);
         let is_disabled = has_flag!(style, WS_DISABLED.0);
@@ -87,7 +82,7 @@ impl WM {
         let title_len = win32::get_window_text_length(hwnd);
         let owner = win32::get_window(hwnd, GW_OWNER);
         if title_len == 0 || is_disabled {
-            return false
+            return false;
         }
         if let Some(titles) = &self.config.windows_ui_core_corewindow {
             if class_name.contains("Windows.UI.Core.CoreWindow")
@@ -109,13 +104,7 @@ impl WM {
             }
         }
         let is_app_window = is_visible && !no_activate && !is_child;
-        let is_alt_tab_window = if is_tool || owner.0 != 0 {
-            false
-        } else if is_app {
-            true
-        } else {
-            true
-        };
+        let is_alt_tab_window = !(is_tool || owner.0 != 0);
         !is_cloaked && is_app_window && is_alt_tab_window
     }
 
@@ -208,14 +197,7 @@ impl WM {
                     self.arrange();
                 }
             }
-            // (id, HSHELL_WINDOWACTIVATED) if id == self.shell_hook_id => {
-            //     if let Some(c) = managed_window {
-            //         self.set_selected(c.hwnd);
-            //     }
-            // }
-            _ => {
-                return unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
-            }
+            _ => return win32::def_window_proc(hwnd, msg, wparam, lparam),
         }
         LRESULT(0)
     }
