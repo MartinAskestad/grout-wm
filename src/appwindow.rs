@@ -33,6 +33,17 @@ pub struct AppWindow {
     minimized_event_hook: HWINEVENTHOOK,
 }
 
+impl Drop for AppWindow {
+    fn drop(&mut self) {
+        info!("Cleaning up handles");
+        unsafe {
+            DeregisterShellHookWindow(self.hwnd);
+            UnhookWinEvent(self.cloaked_event_hook);
+            UnhookWinEvent(self.minimized_event_hook);
+        }
+    }
+}
+
 impl AppWindow {
     pub fn new(wm: &mut WindowManager) -> Result<Self> {
         let instance_res = win32::get_module_handle();
@@ -115,16 +126,6 @@ impl AppWindow {
         Ok(self)
     }
 
-    pub fn cleanup(&self) -> Result<&Self> {
-        info!("Cleaning up handles");
-        unsafe {
-            DeregisterShellHookWindow(self.hwnd);
-            UnhookWinEvent(self.cloaked_event_hook);
-            UnhookWinEvent(self.minimized_event_hook);
-        }
-        Ok(self)
-    }
-
     extern "system" fn wnd_event_proc(
         _: HWINEVENTHOOK,
         event: u32,
@@ -153,21 +154,26 @@ impl AppWindow {
     }
 
     extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-        if msg == WM_DESTROY {
-            info!("Received WM_DESTROY message");
-            win32::post_quit_message(0);
-            return LRESULT(0);
+        match msg {
+            WM_DESTROY => {
+                info!("Received WM_DESTROY message");
+                win32::post_quit_message(0);
+                LRESULT(0)
+            }
+            WM_CREATE=> {
+                info!("Creating application window");
+                let create_struct = lparam.0 as *const CREATESTRUCTA;
+                let wm = unsafe { (*create_struct).lpCreateParams as *mut WindowManager };
+                win32::set_window_long_ptr(hwnd, GWLP_USERDATA, wm as _);
+                LRESULT(0)
+            }
+            _ => {
+                let wm = win32::get_window_long_ptr(hwnd, GWLP_USERDATA) as *mut WindowManager;
+                if !wm.is_null() {
+                    return unsafe { (*wm).message_loop(hwnd, msg, wparam, lparam) };
+                }
+                win32::def_window_proc(hwnd, msg, wparam, lparam)
+            }
         }
-        if msg == WM_CREATE {
-            info!("Creating application window");
-            let create_struct = lparam.0 as *const CREATESTRUCTA;
-            let wm = unsafe { (*create_struct).lpCreateParams as *mut WindowManager };
-            win32::set_window_long_ptr(hwnd, GWLP_USERDATA, wm as _);
-        }
-        let wm = win32::get_window_long_ptr(hwnd, GWLP_USERDATA) as *mut WindowManager;
-        if !wm.is_null() {
-            return unsafe { (*wm).message_loop(hwnd, msg, wparam, lparam) };
-        }
-        win32::def_window_proc(hwnd, msg, wparam, lparam)
     }
 }
