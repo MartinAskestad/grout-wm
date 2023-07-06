@@ -37,7 +37,7 @@ fn main() -> Result<()> {
     let config = Config::load_default()?;
     let mut binding = WindowManager::new(config)?;
     let wm = binding.enum_windows()?;
-    let _appwindow = AppWindow::new(wm)?.handle_messages()?.cleanup();
+    let _appwindow = AppWindow::new(wm)?.handle_messages();
     info!("quitting");
     win32::release_mutex(mutex_handle);
     Ok(())
