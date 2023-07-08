@@ -1,6 +1,6 @@
 use std::{ffi::c_void, sync::OnceLock};
 
-use log::{error, info};
+use log::{debug, error, info};
 use windows::{
     w,
     Win32::{
@@ -12,7 +12,8 @@ use windows::{
                 CreateWindowExW, DeregisterShellHookWindow, CHILDID_SELF, CREATESTRUCTA,
                 CW_USEDEFAULT, EVENT_OBJECT_CLOAKED, EVENT_OBJECT_UNCLOAKED,
                 EVENT_SYSTEM_MINIMIZEEND, EVENT_SYSTEM_MINIMIZESTART, GWLP_USERDATA, OBJID_WINDOW,
-                WINDOW_EX_STYLE, WM_CREATE, WM_DESTROY, WNDCLASSW, WS_OVERLAPPEDWINDOW,
+                WINDOW_EX_STYLE, WM_APP, WM_CREATE, WM_DESTROY, WM_USER, WNDCLASSW,
+                WS_OVERLAPPEDWINDOW,
             },
         },
     },
@@ -22,7 +23,9 @@ use grout_wm::Result;
 
 use crate::{
     win32,
-    windowmanager::{WindowManager, WM_CLOAKED, WM_MINIMIZEEND, WM_MINIMIZESTART, WM_UNCLOAKED},
+    windowmanager::{
+        WindowManager, MSG_CLOAKED, MSG_MINIMIZEEND, MSG_MINIMIZESTART, MSG_UNCLOAKED,
+    },
 };
 
 static MY_HWND: OnceLock<HWND> = OnceLock::new();
@@ -139,16 +142,17 @@ impl AppWindow {
             return;
         }
         if let Some(&my_hwnd) = MY_HWND.get() {
-            if event == EVENT_SYSTEM_MINIMIZEEND {
-                win32::post_message(my_hwnd, WM_MINIMIZEEND, WPARAM(0), LPARAM(hwnd.0));
-            }
-            if event == EVENT_SYSTEM_MINIMIZESTART {
-                win32::post_message(my_hwnd, WM_MINIMIZESTART, WPARAM(0), LPARAM(hwnd.0));
-            }
-            if event == EVENT_OBJECT_UNCLOAKED {
-                win32::post_message(my_hwnd, WM_UNCLOAKED, WPARAM(0), LPARAM(hwnd.0));
-            } else if event == EVENT_OBJECT_CLOAKED {
-                win32::post_message(my_hwnd, WM_CLOAKED, WPARAM(0), LPARAM(hwnd.0));
+            debug!("event: {event}");
+            let msg = match event {
+                EVENT_OBJECT_CLOAKED => MSG_CLOAKED,
+                EVENT_OBJECT_UNCLOAKED => MSG_UNCLOAKED,
+                EVENT_SYSTEM_MINIMIZEEND => MSG_MINIMIZEEND,
+                EVENT_SYSTEM_MINIMIZESTART => MSG_MINIMIZESTART,
+                _ => event,
+            };
+            debug!("msg: {msg}");
+            if msg >= WM_USER || msg < WM_APP {
+                win32::post_message(my_hwnd, msg, WPARAM(0), LPARAM(hwnd.0));
             }
         }
     }
@@ -160,7 +164,7 @@ impl AppWindow {
                 win32::post_quit_message(0);
                 LRESULT(0)
             }
-            WM_CREATE=> {
+            WM_CREATE => {
                 info!("Creating application window");
                 let create_struct = lparam.0 as *const CREATESTRUCTA;
                 let wm = unsafe { (*create_struct).lpCreateParams as *mut WindowManager };

@@ -13,11 +13,11 @@ mod window;
 mod windowmanager;
 
 use crate::appwindow::AppWindow;
-use crate::windowmanager::WindowManager;
 use crate::config::Config;
+use crate::windowmanager::WindowManager;
 
 fn main() -> Result<()> {
-    let mutex_handle = win32::get_mutex().unwrap_or_else(|_e|{
+    let mutex_handle = win32::get_mutex().unwrap_or_else(|_e| {
         error!("Can't run multiple instances");
         std::process::exit(1);
     });

@@ -5,33 +5,48 @@ use windows::Win32::Foundation::HWND;
 use crate::win32;
 
 #[derive(Clone, Copy)]
-pub struct Window {
-    pub hwnd: HWND,
-    pub minimized: bool,
-    pub selected: bool,
-}
+pub struct Window(pub HWND);
 
 impl Window {
     pub fn new(hwnd: HWND) -> Self {
-        Window {
-            hwnd,
-            minimized: Default::default(),
-            selected: Default::default(),
-        }
+        Window(hwnd)
+    }
+
+    pub fn is_iconic(&self) -> bool {
+        win32::is_iconic(self.0)
+    }
+
+    pub fn title(&self) -> String {
+        win32::get_window_text(self.0)
+    }
+
+    pub fn class_name(&self) -> String {
+        win32::get_window_classname(self.0)
+    }
+
+    pub fn exstyle(&self) -> u32 {
+        win32::get_window_exstyle(self.0)
+    }
+
+    pub fn style(&self) -> u32 {
+        win32::get_window_style(self.0)
+    }
+
+    pub fn process_name(&self) -> String {
+        win32::get_exe_filename(self.0).unwrap_or("".to_owned())
     }
 }
 
 impl fmt::Debug for Window {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Window")
-            .field("hwnd", &self.hwnd)
-            .field("title", &win32::get_window_text(self.hwnd))
-            .field("class", &win32::get_window_classname(self.hwnd))
-            .field("minimized", &self.minimized)
-            .field("parent", &win32::get_parent(self.hwnd))
-            .field("ex_style", &win32::get_window_exstyle(self.hwnd))
-            .field("style", &win32::get_window_style(self.hwnd))
-            .field("process", &win32::get_exe_filename(self.hwnd))
+            .field("hwnd", &self.0)
+            .field("title", &self.title())
+            .field("class", &self.class_name())
+            .field("minimized", &self.is_iconic())
+            .field("ex_style", &self.exstyle())
+            .field("style", &self.style())
+            .field("process", &self.process_name())
             .finish()
     }
 }

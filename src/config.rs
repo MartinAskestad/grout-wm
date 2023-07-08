@@ -1,6 +1,6 @@
-use std::env;
-use serde::{Deserialize, Serialize};
 use log::info;
+use serde::{Deserialize, Serialize};
+use std::env;
 
 #[derive(Deserialize, Serialize)]
 pub struct Config {
