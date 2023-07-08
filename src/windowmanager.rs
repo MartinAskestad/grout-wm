@@ -10,6 +10,7 @@ use windows::Win32::{
 use crate::{
     arrange::spiral_subdivide,
     config::Config,
+    rect::Rect,
     win32::{self, VirtualDesktopManager},
     window::Window,
 };
@@ -22,7 +23,7 @@ pub const MSG_MINIMIZESTART: u32 = WM_USER + 0x0004;
 
 pub struct WindowManager {
     managed_windows: Vec<Window>,
-    working_area: (i32, i32, i32, i32),
+    working_area: Rect,
     shell_hook_id: u32,
     config: Config,
     virtual_desktop: VirtualDesktopManager,
@@ -141,6 +142,8 @@ impl WindowManager {
         let number_of_windows = windows_on_screen.len();
         let ds = spiral_subdivide(self.working_area, number_of_windows);
         for (w, d) in windows_on_screen.iter().zip(ds.iter()) {
+            let offset = win32::get_window_border_offset(w.0);
+            debug!("offset: {offset:#?}");
             win32::set_window_pos(w.0, *d);
         }
     }
@@ -160,7 +163,6 @@ impl WindowManager {
                 if managed_window.is_some() {
                     debug!("Cloaked: {managed_window:#?}");
                     self.unmanage(handle);
-                    // self.unmanage_or_pause(handle);
                     self.arrange();
                 }
             }
@@ -180,10 +182,7 @@ impl WindowManager {
             }
             (MSG_MINIMIZESTART, _) => {
                 if managed_window.is_some() {
-                    debug!(
-                        "Minimized
-            {managed_window:#?}"
-                    );
+                    debug!("Minimized{managed_window:#?}");
                     self.arrange();
                 }
             }
@@ -198,7 +197,6 @@ impl WindowManager {
                 if managed_window.is_some() {
                     debug!("{handle:?} is destroyed");
                     self.unmanage(handle);
-                    // self.unmanage_or_pause(handle);
                     self.arrange();
                 }
             }

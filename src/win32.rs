@@ -1,7 +1,7 @@
 use std::{
-    ffi::{c_void, OsString},
-    mem::{size_of, zeroed}, path::PathBuf,
-    os::windows::ffi::OsStringExt,
+    ffi::c_void,
+    mem::{size_of, zeroed},
+    path::PathBuf,
 };
 
 use log::info;
@@ -15,9 +15,8 @@ use windows::{
         },
         Graphics::Dwm::{
             DwmGetWindowAttribute, DWMWA_CLOAKED, DWM_CLOAKED_APP, DWM_CLOAKED_INHERITED,
-            DWM_CLOAKED_SHELL,
+            DWM_CLOAKED_SHELL, DWMWA_EXTENDED_FRAME_BOUNDS,
         },
-        Globalization::lstrlenW,
         System::{
             Com::{CoCreateInstance, CoInitialize, CoUninitialize, CLSCTX_ALL},
             LibraryLoader::GetModuleHandleA,
@@ -30,7 +29,10 @@ use windows::{
         },
         UI::{
             Accessibility::{SetWinEventHook, HWINEVENTHOOK, WINEVENTPROC},
-            Shell::{IVirtualDesktopManager, VirtualDesktopManager as VirtualDesktopManager_ID, SHGetKnownFolderPath, FOLDERID_LocalAppData, KF_FLAG_DEFAULT},
+            Shell::{
+                FOLDERID_LocalAppData, IVirtualDesktopManager, SHGetKnownFolderPath,
+                VirtualDesktopManager as VirtualDesktopManager_ID, KF_FLAG_DEFAULT,
+            },
             WindowsAndMessaging::{
                 DefWindowProcW, EnumWindows, FindWindowW, GetClassNameW, GetSystemMetrics,
                 GetWindow, GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW,
@@ -40,13 +42,15 @@ use windows::{
                 GWL_STYLE, HWND_TOP, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
                 SM_YVIRTUALSCREEN, SPI_GETWORKAREA, SWP_NOACTIVATE, SW_SHOWMINNOACTIVE,
                 SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, WINDOW_LONG_PTR_INDEX, WINEVENT_OUTOFCONTEXT,
-                WNDCLASSW, WNDENUMPROC,
+                WNDCLASSW, WNDENUMPROC, GetWindowRect,
             },
         },
     },
 };
 
 use grout_wm::Result;
+
+use crate::rect::Rect;
 
 pub struct Win32Com;
 
@@ -111,7 +115,7 @@ pub fn get_window_text_length(hwnd: HWND) -> i32 {
     unsafe { GetWindowTextLengthW(hwnd) }
 }
 
-pub fn get_working_area() -> Result<(i32, i32, i32, i32)> {
+pub fn get_working_area() -> Result<Rect> {
     let hwnd = unsafe { FindWindowW(w!("Shell_TrayWnd"), None) };
     let is_visible = is_window_visible(hwnd);
     if hwnd.0 != 0 && is_visible {
@@ -127,9 +131,9 @@ pub fn get_working_area() -> Result<(i32, i32, i32, i32)> {
         if res == FALSE {
             return Err("".into());
         }
-        Ok((wa.left, wa.top, wa.right - wa.left, wa.bottom - wa.top))
+        Ok(Rect::from (wa))
     } else {
-        Ok((
+        Ok(Rect::new(
             unsafe { GetSystemMetrics(SM_XVIRTUALSCREEN) },
             unsafe { GetSystemMetrics(SM_YVIRTUALSCREEN) },
             unsafe { GetSystemMetrics(SM_CXVIRTUALSCREEN) },
@@ -138,9 +142,11 @@ pub fn get_working_area() -> Result<(i32, i32, i32, i32)> {
     }
 }
 
-pub fn set_window_pos(hwnd: HWND, d: (i32, i32, i32, i32)) {
+pub fn set_window_pos(hwnd: HWND, r: Rect) {
+    let offset = get_window_border_offset(hwnd);
+    let pos = r - offset;
     unsafe {
-        SetWindowPos(hwnd, HWND_TOP, d.0, d.1, d.2, d.3, SWP_NOACTIVATE);
+        SetWindowPos(hwnd, HWND_TOP, pos.left, pos.top, pos.width, pos.height, SWP_NOACTIVATE);
     }
 }
 
@@ -280,10 +286,32 @@ pub fn set_window_long_ptr(hwnd: HWND, nindex: WINDOW_LONG_PTR_INDEX, dwnewlong:
 }
 
 pub fn get_local_appdata_path() -> Result<PathBuf> {
-    let wide_path = unsafe { SHGetKnownFolderPath(&FOLDERID_LocalAppData, KF_FLAG_DEFAULT, HANDLE::default())? };
-    let path_str = unsafe {wide_path.to_string().unwrap() };
+    let wide_path = unsafe {
+        SHGetKnownFolderPath(&FOLDERID_LocalAppData, KF_FLAG_DEFAULT, HANDLE::default())?
+    };
+    let path_str = unsafe { wide_path.to_string().unwrap() };
     let path = PathBuf::from(path_str);
     Ok(path)
+}
+
+pub fn get_window_border_offset(hwnd: HWND) -> RECT {
+    let mut rect: RECT = unsafe { zeroed() };
+    let mut frame: RECT = unsafe { zeroed() };
+    unsafe {
+        GetWindowRect(hwnd, &mut rect);
+        let _ = DwmGetWindowAttribute(
+            hwnd,
+            DWMWA_EXTENDED_FRAME_BOUNDS,
+            &mut frame as *mut RECT as *mut c_void,
+            size_of::<RECT>().try_into().unwrap(),
+        );
+    }
+    let mut border: RECT = Default::default();
+    border.left = frame.left - rect.left;
+    border.top = frame.top - rect.top;
+    border.right = frame.right - rect.right;
+    border.bottom = frame.bottom - rect.bottom;
+border
 }
 
 // =====
@@ -294,7 +322,7 @@ pub struct VirtualDesktopManager(IVirtualDesktopManager);
 
 impl VirtualDesktopManager {
     pub fn new() -> Result<Self> {
-        info!("Instanciate VirtualDesktopManager");
+        info!("Instantiate VirtualDesktopManager");
         unsafe {
             CoInitialize(None)?;
         }
