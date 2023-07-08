@@ -1,13 +1,30 @@
-fn subdivide(bounds: (i32, i32, i32, i32), vertical: bool) -> Vec<(i32, i32, i32, i32)> {
-    let (bx, by, bw, bh) = bounds;
+use crate::rect::Rect;
+
+fn subdivide(bounds: Rect, vertical: bool) -> Vec<Rect> {
     if vertical {
-        vec![(bx, by, bw / 2, bh), (bx + bw / 2, by, bw / 2, bh)]
+        vec![
+            Rect::new(bounds.left, bounds.top, bounds.width / 2, bounds.height),
+            Rect::new(
+                bounds.left + bounds.width / 2,
+                bounds.top,
+                bounds.width / 2,
+                bounds.height,
+            ),
+        ]
     } else {
-        vec![(bx, by, bw, bh / 2), (bx, by + bh / 2, bw, bh / 2)]
+        vec![
+            Rect::new(bounds.left, bounds.top, bounds.width, bounds.height / 2),
+            Rect::new(
+                bounds.left,
+                bounds.top + bounds.height / 2,
+                bounds.width,
+                bounds.height / 2,
+            ),
+        ]
     }
 }
 
-pub fn spiral_subdivide(bounds: (i32, i32, i32, i32), n: usize) -> Vec<(i32, i32, i32, i32)> {
+pub fn spiral_subdivide(bounds: Rect, n: usize) -> Vec<Rect> {
     let mut divisions = vec![bounds];
     for i in 1..n {
         let d = divisions.pop().unwrap();
