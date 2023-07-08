@@ -34,7 +34,7 @@ fn main() -> Result<()> {
         error!("Can not initialize com");
         std::process::exit(1);
     });
-    let config = Config::load_default()?;
+    let config = Config::load_default()?.load_or_create_user_config()?;
     let mut binding = WindowManager::new(config)?;
     let wm = binding.enum_windows()?;
     let _appwindow = AppWindow::new(wm)?.handle_messages();
