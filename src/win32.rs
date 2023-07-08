@@ -1,6 +1,7 @@
 use std::{
-    ffi::c_void,
-    mem::{size_of, zeroed},
+    ffi::{c_void, OsString},
+    mem::{size_of, zeroed}, path::PathBuf,
+    os::windows::ffi::OsStringExt,
 };
 
 use log::info;
@@ -16,6 +17,7 @@ use windows::{
             DwmGetWindowAttribute, DWMWA_CLOAKED, DWM_CLOAKED_APP, DWM_CLOAKED_INHERITED,
             DWM_CLOAKED_SHELL,
         },
+        Globalization::lstrlenW,
         System::{
             Com::{CoCreateInstance, CoInitialize, CoUninitialize, CLSCTX_ALL},
             LibraryLoader::GetModuleHandleA,
@@ -28,7 +30,7 @@ use windows::{
         },
         UI::{
             Accessibility::{SetWinEventHook, HWINEVENTHOOK, WINEVENTPROC},
-            Shell::{IVirtualDesktopManager, VirtualDesktopManager as VirtualDesktopManager_ID},
+            Shell::{IVirtualDesktopManager, VirtualDesktopManager as VirtualDesktopManager_ID, SHGetKnownFolderPath, FOLDERID_LocalAppData, KF_FLAG_DEFAULT},
             WindowsAndMessaging::{
                 DefWindowProcW, EnumWindows, FindWindowW, GetClassNameW, GetSystemMetrics,
                 GetWindow, GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW,
@@ -275,6 +277,13 @@ pub fn get_window(hwnd: HWND, ucmd: GET_WINDOW_CMD) -> HWND {
 
 pub fn set_window_long_ptr(hwnd: HWND, nindex: WINDOW_LONG_PTR_INDEX, dwnewlong: isize) -> isize {
     unsafe { SetWindowLongPtrW(hwnd, nindex, dwnewlong) }
+}
+
+pub fn get_local_appdata_path() -> Result<PathBuf> {
+    let wide_path = unsafe { SHGetKnownFolderPath(&FOLDERID_LocalAppData, KF_FLAG_DEFAULT, HANDLE::default())? };
+    let path_str = unsafe {wide_path.to_string().unwrap() };
+    let path = PathBuf::from(path_str);
+    Ok(path)
 }
 
 // =====
