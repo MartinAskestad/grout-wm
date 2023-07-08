@@ -1,3 +1,17 @@
+#[macro_export]
+macro_rules! any {
+    ($xs:expr, $x:expr) => {
+        $xs.iter().any(|&x| x.0 == $x)
+    };
+}
+
+#[macro_export]
+macro_rules! has_flag {
+    ($value:expr, $flag:expr) => {
+        ($value & $flag) != 0
+    };
+}
+
 pub struct Error {
     pub(crate) message: String,
 }
@@ -19,13 +33,17 @@ impl std::fmt::Display for Error {
 
 impl std::convert::From<&str> for Error {
     fn from(err: &str) -> Self {
-        Error { message: String::from(err) }
+        Error {
+            message: String::from(err),
+        }
     }
 }
 
 impl std::convert::From<windows::core::Error> for Error {
     fn from(err: windows::core::Error) -> Self {
-        Error { message: err.to_string() }
+        Error {
+            message: err.to_string(),
+        }
     }
 }
 

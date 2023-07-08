@@ -17,27 +17,29 @@ use windows::{
             DWM_CLOAKED_SHELL,
         },
         System::{
+            Com::{CoCreateInstance, CoInitialize, CoUninitialize, CLSCTX_ALL},
             LibraryLoader::GetModuleHandleA,
             ProcessStatus::{
                 EnumProcessModules, GetModuleBaseNameW, GetModuleInformation, MODULEINFO,
             },
             Threading::{
                 CreateMutexW, OpenProcess, ReleaseMutex, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
-            }, Com::{CoUninitialize, CoInitialize, CLSCTX_ALL, CoCreateInstance},
+            },
         },
         UI::{
             Accessibility::{SetWinEventHook, HWINEVENTHOOK, WINEVENTPROC},
+            Shell::{IVirtualDesktopManager, VirtualDesktopManager as VirtualDesktopManager_ID},
             WindowsAndMessaging::{
-                DefWindowProcW, EnumWindows, FindWindowW, GetClassNameW, GetParent,
-                GetSystemMetrics, GetWindow, GetWindowLongPtrW, GetWindowTextLengthW,
-                GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindowVisible, PostMessageW,
-                PostQuitMessage, RegisterClassW, RegisterShellHookWindow, RegisterWindowMessageW,
-                SetWindowLongPtrW, SetWindowPos, ShowWindow, SystemParametersInfoW, GET_WINDOW_CMD,
-                GWL_EXSTYLE, GWL_STYLE, HWND_TOP, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN,
-                SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SPI_GETWORKAREA, SWP_NOACTIVATE,
-                SW_SHOWMINNOACTIVE, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, WINDOW_LONG_PTR_INDEX,
-                WINEVENT_OUTOFCONTEXT, WNDCLASSW, WNDENUMPROC,
-            }, Shell::{IVirtualDesktopManager, VirtualDesktopManager as VirtualDesktopManager_ID},
+                DefWindowProcW, EnumWindows, FindWindowW, GetClassNameW, GetSystemMetrics,
+                GetWindow, GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW,
+                GetWindowThreadProcessId, IsIconic, IsWindowVisible, PostMessageW, PostQuitMessage,
+                RegisterClassW, RegisterShellHookWindow, RegisterWindowMessageW, SetWindowLongPtrW,
+                SetWindowPos, ShowWindow, SystemParametersInfoW, GET_WINDOW_CMD, GWL_EXSTYLE,
+                GWL_STYLE, HWND_TOP, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
+                SM_YVIRTUALSCREEN, SPI_GETWORKAREA, SWP_NOACTIVATE, SW_SHOWMINNOACTIVE,
+                SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, WINDOW_LONG_PTR_INDEX, WINEVENT_OUTOFCONTEXT,
+                WNDCLASSW, WNDENUMPROC,
+            },
         },
     },
 };
@@ -49,7 +51,9 @@ pub struct Win32Com;
 impl Win32Com {
     pub fn new() -> Result<Self> {
         info!("Initialize COM");
-        unsafe { CoInitialize(None)?; }
+        unsafe {
+            CoInitialize(None)?;
+        }
         Ok(Win32Com)
     }
 }
@@ -57,7 +61,9 @@ impl Win32Com {
 impl Drop for Win32Com {
     fn drop(&mut self) {
         info!("Uninitializing COM");
-        unsafe { CoUninitialize(); }
+        unsafe {
+            CoUninitialize();
+        }
     }
 }
 pub fn is_cloaked(hwnd: HWND) -> bool {
@@ -81,10 +87,6 @@ pub fn is_cloaked(hwnd: HWND) -> bool {
 
 pub fn is_iconic(hwnd: HWND) -> bool {
     unsafe { IsIconic(hwnd).into() }
-}
-
-pub fn get_parent(hwnd: HWND) -> HWND {
-    unsafe { GetParent(hwnd) }
 }
 
 pub fn get_window_long_ptr(hwnd: HWND, nindex: WINDOW_LONG_PTR_INDEX) -> isize {
@@ -284,7 +286,9 @@ pub struct VirtualDesktopManager(IVirtualDesktopManager);
 impl VirtualDesktopManager {
     pub fn new() -> Result<Self> {
         info!("Instanciate VirtualDesktopManager");
-        unsafe { CoInitialize(None)?; }
+        unsafe {
+            CoInitialize(None)?;
+        }
         let virtual_desktop_managr =
             unsafe { CoCreateInstance(&VirtualDesktopManager_ID, None, CLSCTX_ALL)? };
         Ok(Self(virtual_desktop_managr))
