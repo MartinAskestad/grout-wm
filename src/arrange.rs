@@ -1,30 +1,48 @@
-use crate::rect::Rect;
+use windows::Win32::Foundation::RECT;
 
-fn subdivide(bounds: Rect, vertical: bool) -> Vec<Rect> {
+fn subdivide(bounds: RECT, vertical: bool) -> Vec<RECT> {
+    let RECT {
+        left,
+        top,
+        right,
+        bottom,
+    } = bounds;
     if vertical {
+        let mid_x = left + (right - left) / 2;
         vec![
-            Rect::new(bounds.left, bounds.top, bounds.width / 2, bounds.height),
-            Rect::new(
-                bounds.left + bounds.width / 2,
-                bounds.top,
-                bounds.width / 2,
-                bounds.height,
-            ),
+            RECT {
+                left,
+                top,
+                right: mid_x,
+                bottom,
+            },
+            RECT {
+                left: mid_x,
+                top,
+                right,
+                bottom,
+            },
         ]
     } else {
+        let mid_y = top + (bottom - top) / 2;
         vec![
-            Rect::new(bounds.left, bounds.top, bounds.width, bounds.height / 2),
-            Rect::new(
-                bounds.left,
-                bounds.top + bounds.height / 2,
-                bounds.width,
-                bounds.height / 2,
-            ),
+            RECT {
+                left,
+                top,
+                right,
+                bottom: mid_y,
+            },
+            RECT {
+                left,
+                top: mid_y,
+                right,
+                bottom,
+            },
         ]
     }
 }
 
-pub fn spiral_subdivide(bounds: Rect, n: usize) -> Vec<Rect> {
+pub fn spiral_subdivide(bounds: RECT, n: usize) -> Vec<RECT> {
     let mut divisions = vec![bounds];
     for i in 1..n {
         let d = divisions.pop().unwrap();

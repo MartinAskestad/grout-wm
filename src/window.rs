@@ -35,6 +35,14 @@ impl Window {
     pub fn process_name(&self) -> String {
         win32::get_exe_filename(self.0).unwrap_or("".to_owned())
     }
+
+    pub fn position(&self) -> windows::Win32::Foundation::RECT {
+        let mut rect: windows::Win32::Foundation::RECT = unsafe { std::mem::zeroed() };
+        unsafe {
+            windows::Win32::UI::WindowsAndMessaging::GetWindowRect(self.0, &mut rect);
+        }
+        rect
+    }
 }
 
 impl fmt::Debug for Window {

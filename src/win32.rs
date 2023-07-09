@@ -4,18 +4,21 @@ use std::{
     path::PathBuf,
 };
 
-use log::info;
+use log::{debug, info};
 use windows::{
     core::PCWSTR,
     w,
     Win32::{
         Foundation::{
             CloseHandle, GetLastError, BOOL, ERROR_ALREADY_EXISTS, FALSE, HANDLE, HMODULE, HWND,
-            LPARAM, LRESULT, MAX_PATH, RECT, TRUE, WPARAM,
+            LPARAM, LRESULT, MAX_PATH, POINT, RECT, TRUE, WPARAM,
         },
-        Graphics::Dwm::{
-            DwmGetWindowAttribute, DWMWA_CLOAKED, DWM_CLOAKED_APP, DWM_CLOAKED_INHERITED,
-            DWM_CLOAKED_SHELL, DWMWA_EXTENDED_FRAME_BOUNDS,
+        Graphics::{
+            Dwm::{
+                DwmGetWindowAttribute, DWMWA_CLOAKED, DWMWA_EXTENDED_FRAME_BOUNDS, DWM_CLOAKED_APP,
+                DWM_CLOAKED_INHERITED, DWM_CLOAKED_SHELL,
+            },
+            Gdi::PtInRect,
         },
         System::{
             Com::{CoCreateInstance, CoInitialize, CoUninitialize, CLSCTX_ALL},
@@ -34,23 +37,22 @@ use windows::{
                 VirtualDesktopManager as VirtualDesktopManager_ID, KF_FLAG_DEFAULT,
             },
             WindowsAndMessaging::{
-                DefWindowProcW, EnumWindows, FindWindowW, GetClassNameW, GetSystemMetrics,
-                GetWindow, GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW,
-                GetWindowThreadProcessId, IsIconic, IsWindowVisible, PostMessageW, PostQuitMessage,
-                RegisterClassW, RegisterShellHookWindow, RegisterWindowMessageW, SetWindowLongPtrW,
-                SetWindowPos, ShowWindow, SystemParametersInfoW, GET_WINDOW_CMD, GWL_EXSTYLE,
-                GWL_STYLE, HWND_TOP, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
+                DefWindowProcW, EnumWindows, FindWindowW, GetClassNameW, GetCursorPos,
+                GetSystemMetrics, GetWindow, GetWindowLongPtrW, GetWindowRect,
+                GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, IsIconic,
+                IsWindowVisible, PostMessageW, PostQuitMessage, RegisterClassW,
+                RegisterShellHookWindow, RegisterWindowMessageW, SetWindowLongPtrW, SetWindowPos,
+                ShowWindow, SystemParametersInfoW, GET_WINDOW_CMD, GWL_EXSTYLE, GWL_STYLE,
+                HWND_TOP, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
                 SM_YVIRTUALSCREEN, SPI_GETWORKAREA, SWP_NOACTIVATE, SW_SHOWMINNOACTIVE,
                 SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, WINDOW_LONG_PTR_INDEX, WINEVENT_OUTOFCONTEXT,
-                WNDCLASSW, WNDENUMPROC, GetWindowRect,
+                WNDCLASSW, WNDENUMPROC,
             },
         },
     },
 };
 
 use grout_wm::Result;
-
-use crate::rect::Rect;
 
 pub struct Win32Com;
 
@@ -115,7 +117,7 @@ pub fn get_window_text_length(hwnd: HWND) -> i32 {
     unsafe { GetWindowTextLengthW(hwnd) }
 }
 
-pub fn get_working_area() -> Result<Rect> {
+pub fn get_working_area() -> Result<RECT> {
     let hwnd = unsafe { FindWindowW(w!("Shell_TrayWnd"), None) };
     let is_visible = is_window_visible(hwnd);
     if hwnd.0 != 0 && is_visible {
@@ -131,22 +133,30 @@ pub fn get_working_area() -> Result<Rect> {
         if res == FALSE {
             return Err("".into());
         }
-        Ok(Rect::from (wa))
+        Ok(wa)
     } else {
-        Ok(Rect::new(
-            unsafe { GetSystemMetrics(SM_XVIRTUALSCREEN) },
-            unsafe { GetSystemMetrics(SM_YVIRTUALSCREEN) },
-            unsafe { GetSystemMetrics(SM_CXVIRTUALSCREEN) },
-            unsafe { GetSystemMetrics(SM_CYVIRTUALSCREEN) },
-        ))
+        Ok(RECT {
+            left: unsafe { GetSystemMetrics(SM_XVIRTUALSCREEN) },
+            top: unsafe { GetSystemMetrics(SM_YVIRTUALSCREEN) },
+            right: unsafe { GetSystemMetrics(SM_CXVIRTUALSCREEN) },
+            bottom: unsafe { GetSystemMetrics(SM_CYVIRTUALSCREEN) },
+        })
     }
 }
 
-pub fn set_window_pos(hwnd: HWND, r: Rect) {
-    let offset = get_window_border_offset(hwnd);
-    let pos = r - offset;
+pub fn set_window_pos(hwnd: HWND, r: RECT) {
+    let margin = get_window_extended_frame_bounds(hwnd); // should be: { left: 7, top: 0, right:-7, bottom -7 }
+    debug!("{margin:?}");
     unsafe {
-        SetWindowPos(hwnd, HWND_TOP, pos.left, pos.top, pos.width, pos.height, SWP_NOACTIVATE);
+        SetWindowPos(
+            hwnd,
+            HWND_TOP,
+            r.left - margin.left,
+            r.top - margin.top,
+            (r.right - r.left) - margin.right * 2,
+            (r.bottom - r.top) - margin.bottom,
+            SWP_NOACTIVATE,
+        );
     }
 }
 
@@ -294,7 +304,7 @@ pub fn get_local_appdata_path() -> Result<PathBuf> {
     Ok(path)
 }
 
-pub fn get_window_border_offset(hwnd: HWND) -> RECT {
+pub fn get_window_extended_frame_bounds(hwnd: HWND) -> RECT {
     let mut rect: RECT = unsafe { zeroed() };
     let mut frame: RECT = unsafe { zeroed() };
     unsafe {
@@ -306,12 +316,24 @@ pub fn get_window_border_offset(hwnd: HWND) -> RECT {
             size_of::<RECT>().try_into().unwrap(),
         );
     }
-    let mut border: RECT = Default::default();
-    border.left = frame.left - rect.left;
-    border.top = frame.top - rect.top;
-    border.right = frame.right - rect.right;
-    border.bottom = frame.bottom - rect.bottom;
-border
+    RECT {
+        left: frame.left - rect.left,
+        top: frame.top - rect.top,
+        right: frame.right - rect.right,
+        bottom: frame.bottom - rect.bottom,
+    }
+}
+
+pub fn get_cursor_pos() -> POINT {
+    let mut p: POINT = unsafe { zeroed() };
+    unsafe {
+        GetCursorPos(&mut p);
+    }
+    p
+}
+
+pub fn point_in_rect(lprc: RECT, pt: POINT) -> bool {
+    unsafe { PtInRect(&lprc, pt).into() }
 }
 
 // =====

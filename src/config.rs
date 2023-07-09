@@ -1,8 +1,12 @@
+use crate::win32;
 use grout_wm::Result;
 use log::info;
 use serde::{Deserialize, Serialize};
-use std::{env, fs::{File, copy, create_dir}, path::Path};
-use crate::win32;
+use std::{
+    env,
+    fs::{copy, create_dir, File},
+    path::Path,
+};
 
 #[derive(Deserialize, Serialize)]
 pub struct Config {
@@ -48,9 +52,11 @@ impl Config {
             template_path.set_file_name("user.yaml");
             copy(template_path, user_config_path.clone()).expect("Could not copy user.toml");
         }
-        let user_config_file = File::open(user_config_path).expect("Could not open user config file");
-        let user_config:Config = serde_yaml::from_reader(user_config_file).expect("Could not parse user config file");
-        Ok(self+user_config)
+        let user_config_file =
+            File::open(user_config_path).expect("Could not open user config file");
+        let user_config: Config =
+            serde_yaml::from_reader(user_config_file).expect("Could not parse user config file");
+        Ok(self + user_config)
     }
 }
 
@@ -59,7 +65,7 @@ fn merge_option_vecs<T>(a: Option<Vec<T>>, b: Option<Vec<T>>) -> Option<Vec<T>> 
         (Some(mut v1), Some(v2)) => {
             v1.extend(v2);
             Some(v1)
-        },
+        }
         (Some(v1), None) => Some(v1),
         (None, Some(v2)) => Some(v2),
         (None, None) => None,

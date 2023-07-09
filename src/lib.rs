@@ -50,7 +50,7 @@ impl std::convert::From<windows::core::Error> for Error {
 impl std::convert::From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Self {
         Error {
-            message: err.to_string()
+            message: err.to_string(),
         }
     }
 }
