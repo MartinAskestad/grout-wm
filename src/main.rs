@@ -8,7 +8,6 @@ use grout_wm::Result;
 mod appwindow;
 mod arrange;
 mod config;
-mod rect;
 mod win32;
 mod window;
 mod windowmanager;

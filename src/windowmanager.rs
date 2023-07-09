@@ -1,6 +1,6 @@
 use log::{debug, error, info};
 use windows::Win32::{
-    Foundation::{BOOL, HWND, LPARAM, LRESULT, TRUE, WPARAM},
+    Foundation::{BOOL, HWND, LPARAM, LRESULT, RECT, TRUE, WPARAM},
     UI::WindowsAndMessaging::{
         GW_OWNER, HSHELL_WINDOWCREATED, HSHELL_WINDOWDESTROYED, WM_USER, WS_CHILD, WS_DISABLED,
         WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
@@ -10,7 +10,6 @@ use windows::Win32::{
 use crate::{
     arrange::spiral_subdivide,
     config::Config,
-    rect::Rect,
     win32::{self, VirtualDesktopManager},
     window::Window,
 };
@@ -20,10 +19,11 @@ pub const MSG_UNCLOAKED: u32 = WM_USER;
 pub const MSG_CLOAKED: u32 = WM_USER + 0x0001;
 pub const MSG_MINIMIZEEND: u32 = WM_USER + 0x0003;
 pub const MSG_MINIMIZESTART: u32 = WM_USER + 0x0004;
+pub const MSG_MOVESIZEEND: u32 = WM_USER + 0x0006;
 
 pub struct WindowManager {
     managed_windows: Vec<Window>,
-    working_area: Rect,
+    working_area: RECT,
     shell_hook_id: u32,
     config: Config,
     virtual_desktop: VirtualDesktopManager,
@@ -77,27 +77,23 @@ impl WindowManager {
         let title_len = win32::get_window_text_length(hwnd);
         let owner = win32::get_window(hwnd, GW_OWNER);
         if title_len == 0 || is_disabled {
-            info!("Window {title} is not suitable to manage");
             return false;
         }
         if let Some(titles) = &self.config.windows_ui_core_corewindow {
             if class_name.contains("Windows.UI.Core.CoreWindow")
                 && titles.iter().any(|t| title.contains(t))
             {
-                info!("Window {title} is not suitable to manage");
                 return false;
             }
         }
         if let Some(classes) = &self.config.class_names {
             if classes.iter().any(|cn| class_name.contains(cn)) {
-                info!("Window {title} is not suitable to manage");
                 return false;
             }
         }
         if let Some(processes) = &self.config.process_names {
             if let Some(process_name) = process_name {
                 if processes.iter().any(|p| process_name.contains(p)) {
-                    info!("Window {title} is not suitable to manage");
                     return false;
                 }
             }
@@ -122,7 +118,6 @@ impl WindowManager {
             .is_window_on_current_desktop(hwnd)
             .unwrap_or(false);
         if is_on_desktop {
-            info!("unmanage {:#?}", self.get_window(hwnd));
             self.managed_windows.retain(|w| w.0 != hwnd);
         }
     }
@@ -142,8 +137,6 @@ impl WindowManager {
         let number_of_windows = windows_on_screen.len();
         let ds = spiral_subdivide(self.working_area, number_of_windows);
         for (w, d) in windows_on_screen.iter().zip(ds.iter()) {
-            let offset = win32::get_window_border_offset(w.0);
-            debug!("offset: {offset:#?}");
             win32::set_window_pos(w.0, *d);
         }
     }
@@ -168,21 +161,34 @@ impl WindowManager {
             }
             (MSG_UNCLOAKED, _) => {
                 if managed_window.is_none() && self.is_manageable(handle) {
-                    debug!("{handle:?} is uncloaked");
+                    debug!("Uncloaked: {handle:?}");
                     self.manage(handle);
                     self.arrange();
                 }
             }
-            (MSG_MINIMIZEEND, _) => {
-                if let Some(index) = self.managed_windows.iter().position(|&w| w.0 == handle) {
-                    let sel = &mut self.managed_windows[index];
-                    debug!("Restored: {sel:#?}");
-                    self.arrange();
-                }
+            (MSG_MINIMIZEEND, _) | (MSG_MINIMIZESTART, _) => {
+                self.arrange();
             }
-            (MSG_MINIMIZESTART, _) => {
-                if managed_window.is_some() {
-                    debug!("Minimized{managed_window:#?}");
+            (MSG_MOVESIZEEND, _) => {
+                if let Some(window) = managed_window {
+                    let mouse_pos = win32::get_cursor_pos();
+                    let landed_on_window_opt = self.managed_windows.iter().position(|&w| {
+                        let is_on_desktop = self
+                            .virtual_desktop
+                            .is_window_on_current_desktop(w.0)
+                            .unwrap_or(false);
+                        is_on_desktop
+                            && w.0 != window.0
+                            && win32::point_in_rect(w.position(), mouse_pos)
+                    });
+                    if let Some(landed_on_idx) = landed_on_window_opt {
+                        let window_idx = self
+                            .managed_windows
+                            .iter()
+                            .position(|&w| w.0 == window.0)
+                            .unwrap();
+                        self.managed_windows.swap(window_idx, landed_on_idx);
+                    }
                     self.arrange();
                 }
             }

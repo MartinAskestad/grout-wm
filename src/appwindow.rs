@@ -11,9 +11,9 @@ use windows::{
             WindowsAndMessaging::{
                 CreateWindowExW, DeregisterShellHookWindow, CHILDID_SELF, CREATESTRUCTA,
                 CW_USEDEFAULT, EVENT_OBJECT_CLOAKED, EVENT_OBJECT_UNCLOAKED,
-                EVENT_SYSTEM_MINIMIZEEND, EVENT_SYSTEM_MINIMIZESTART, GWLP_USERDATA, OBJID_WINDOW,
-                WINDOW_EX_STYLE, WM_APP, WM_CREATE, WM_DESTROY, WM_USER, WNDCLASSW,
-                WS_OVERLAPPEDWINDOW,
+                EVENT_SYSTEM_MINIMIZEEND, EVENT_SYSTEM_MINIMIZESTART, EVENT_SYSTEM_MOVESIZEEND,
+                EVENT_SYSTEM_MOVESIZESTART, GWLP_USERDATA, OBJID_WINDOW, WINDOW_EX_STYLE, WM_APP,
+                WM_CREATE, WM_DESTROY, WM_USER, WNDCLASSW, WS_OVERLAPPEDWINDOW,
             },
         },
     },
@@ -24,7 +24,8 @@ use grout_wm::Result;
 use crate::{
     win32,
     windowmanager::{
-        WindowManager, MSG_CLOAKED, MSG_MINIMIZEEND, MSG_MINIMIZESTART, MSG_UNCLOAKED,
+        WindowManager, MSG_CLOAKED, MSG_MINIMIZEEND, MSG_MINIMIZESTART, MSG_MOVESIZEEND,
+        MSG_UNCLOAKED,
     },
 };
 
@@ -34,6 +35,7 @@ pub struct AppWindow {
     hwnd: HWND,
     cloaked_event_hook: HWINEVENTHOOK,
     minimized_event_hook: HWINEVENTHOOK,
+    movesize_event_hook: HWINEVENTHOOK,
 }
 
 impl Drop for AppWindow {
@@ -43,6 +45,7 @@ impl Drop for AppWindow {
             DeregisterShellHookWindow(self.hwnd);
             UnhookWinEvent(self.cloaked_event_hook);
             UnhookWinEvent(self.minimized_event_hook);
+            UnhookWinEvent(self.movesize_event_hook);
         }
     }
 }
@@ -104,10 +107,16 @@ impl AppWindow {
                 EVENT_SYSTEM_MINIMIZEEND,
                 Some(Self::wnd_event_proc),
             );
+            let movesize_event_hook = win32::set_win_event_hook(
+                EVENT_SYSTEM_MOVESIZESTART,
+                EVENT_SYSTEM_MOVESIZEEND,
+                Some(Self::wnd_event_proc),
+            );
             Ok(Self {
                 hwnd,
                 cloaked_event_hook,
                 minimized_event_hook,
+                movesize_event_hook,
             })
         } else {
             error!("Could not get instace");
@@ -148,6 +157,7 @@ impl AppWindow {
                 EVENT_OBJECT_UNCLOAKED => MSG_UNCLOAKED,
                 EVENT_SYSTEM_MINIMIZEEND => MSG_MINIMIZEEND,
                 EVENT_SYSTEM_MINIMIZESTART => MSG_MINIMIZESTART,
+                EVENT_SYSTEM_MOVESIZEEND => MSG_MOVESIZEEND,
                 _ => event,
             };
             debug!("msg: {msg}");
