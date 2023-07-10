@@ -13,7 +13,7 @@ use windows::{
                 CW_USEDEFAULT, EVENT_OBJECT_CLOAKED, EVENT_OBJECT_UNCLOAKED,
                 EVENT_SYSTEM_MINIMIZEEND, EVENT_SYSTEM_MINIMIZESTART, EVENT_SYSTEM_MOVESIZEEND,
                 EVENT_SYSTEM_MOVESIZESTART, GWLP_USERDATA, OBJID_WINDOW, WINDOW_EX_STYLE, WM_APP,
-                WM_CREATE, WM_DESTROY, WM_USER, WNDCLASSW, WS_OVERLAPPEDWINDOW,
+                WM_CREATE, WM_DESTROY, WM_USER, WNDCLASSW, WS_OVERLAPPEDWINDOW, WM_SYSCOMMAND, SC_RESTORE,
             },
         },
     },
@@ -180,6 +180,13 @@ impl AppWindow {
                 let wm = unsafe { (*create_struct).lpCreateParams as *mut WindowManager };
                 win32::set_window_long_ptr(hwnd, GWLP_USERDATA, wm as _);
                 LRESULT(0)
+            }
+            WM_SYSCOMMAND => {
+                debug!("WM_SYSCOMMAND {:?}\t{}", wparam, SC_RESTORE);
+                if wparam.0 as u32 == SC_RESTORE {
+                    return LRESULT(0);
+                }
+                win32::def_window_proc(hwnd, msg, wparam, lparam)
             }
             _ => {
                 let wm = win32::get_window_long_ptr(hwnd, GWLP_USERDATA) as *mut WindowManager;
