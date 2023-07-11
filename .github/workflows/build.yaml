@@ -26,8 +26,8 @@ jobs:
 
       - name: Run tests and clippy
         run: |
-          cargo test
           cargo clippy
+          cargo test
 
   build:
     needs: [test]
