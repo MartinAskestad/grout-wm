@@ -8,7 +8,7 @@ on:
       - opened
       - synchronize
   push:
-    branches-ignore:
+    branches:
       - master
 
 jobs:
@@ -24,13 +24,15 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Run tests
-        run: cargo test
+      - name: Run tests and clippy
+        run: |
+          cargo test
+          cargo clippy
 
   build:
     needs: [test]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
 
     steps:
       - name: Checkout repository
