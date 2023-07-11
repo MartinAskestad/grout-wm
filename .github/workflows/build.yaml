@@ -13,7 +13,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
       - name: Checkout repository
@@ -26,13 +26,13 @@ jobs:
 
       - name: Run tests and clippy
         run: |
-          cargo clippy
           cargo test
+          cargo clippy
 
   build:
     needs: [test]
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    runs-on: windows-latest
+    # if: github.ref == 'refs/heads/master' && github.event_name == 'push'
 
     steps:
       - name: Checkout repository
@@ -48,10 +48,10 @@ jobs:
 
       - name: Create zip file
         run: |
-          zip -r program.zip target/release
+          zip -r grout-wm.zip target/release
 
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
-          name: program-zip
-          path: program.zip
+          name: grout-wm
+          path: grout-wm.zip
