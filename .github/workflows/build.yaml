@@ -1,0 +1,52 @@
+name: Build and Test
+
+on:
+  pull_request:
+    branches:
+      - '*'
+    types:
+      - opened
+      - synchronize
+  push:
+    branches-ignore:
+      - master
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Run tests
+        run: cargo test
+
+  build:
+    needs: [test]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Build program
+        run: cargo build --release
+
+      - name: Create zip file
+        run: |
+          zip -r program.zip target/release
+        artifacts:
+          paths:
+            - program.zip
