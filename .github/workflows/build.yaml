@@ -47,6 +47,9 @@ jobs:
       - name: Create zip file
         run: |
           zip -r program.zip target/release
-        artifacts:
-          paths:
-            - program.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: program-zip
+          path: program.zip
