@@ -47,10 +47,6 @@ jobs:
       - name: Build program
         run: cargo build --release
 
-      - name: Create zip file
-        run: |
-          zip -r grout-wm.zip target/release
-
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
