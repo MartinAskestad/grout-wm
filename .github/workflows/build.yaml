@@ -25,15 +25,16 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Run tests and clippy
-        run: |
-          cargo test
-          cargo clippy
+      - name: Install dependencies
+        run: cargo fetch
+
+      - name: Run tests
+        run: cargo test
 
   build:
     needs: [test]
     runs-on: windows-latest
-    # if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    # if: github.ref == 'refs/heads/master'
 
     steps:
       - name: Checkout repository
@@ -44,11 +45,21 @@ jobs:
         with:
           toolchain: stable
 
+      - name: Install dependencies
+        run: cargo fetch
+
       - name: Build program
         run: cargo build --release
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v2
+      - name: Create zip file
+        run: |
+          $outputPath = "${{ github.workspace }}/program.zip"
+          Compress-Archive -Path "${{ github.workspace }}/target/*" -DestinationPath $outputPath
+        shell: pwsh
+
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v3
         with:
-          name: grout-wm
-          path: grout-wm.zip
+          name: grout-wm-artifacts
+          path: |
+            target
