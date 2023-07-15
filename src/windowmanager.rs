@@ -4,7 +4,7 @@ use log::{debug, error, info};
 use windows::Win32::{
     Foundation::{BOOL, HWND, LPARAM, LRESULT, RECT, TRUE, WPARAM},
     UI::WindowsAndMessaging::{
-        GW_OWNER, HSHELL_WINDOWCREATED, HSHELL_WINDOWDESTROYED, WM_USER, WS_CHILD, WS_DISABLED,
+        GW_OWNER,  HSHELL_WINDOWCREATED, HSHELL_WINDOWDESTROYED, WM_USER, WS_CHILD, WS_DISABLED,
         WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
     },
 };
@@ -12,9 +12,10 @@ use windows::Win32::{
 use crate::{
     arrange::spiral_subdivide,
     config::Config,
-    win32::{self, VirtualDesktopManager},
+    win32::{virtualdesktop::VirtualDesktopManager},
     window::Window,
 };
+use crate::win32;
 use grout_wm::{any, has_flag, Result};
 
 pub const MSG_UNCLOAKED: u32 = WM_USER;
@@ -68,7 +69,7 @@ impl WindowManager {
         let style = win32::get_window_style(hwnd);
         let exstyle = win32::get_window_exstyle(hwnd);
         let is_child = has_flag!(style, WS_CHILD.0);
-        let is_cloaked = win32::is_cloaked(hwnd);
+        let is_cloaked = win32::dwm::is_cloaked(hwnd);
         let is_disabled = has_flag!(style, WS_DISABLED.0);
         let is_tool = has_flag!(exstyle, WS_EX_TOOLWINDOW.0);
         let is_visible = win32::is_window_visible(hwnd);
@@ -117,6 +118,8 @@ impl WindowManager {
             .unwrap_or(false);
         if is_on_desktop {
             self.managed_windows.retain(|w| w.0 != hwnd);
+        } else {
+            self.arrange();
         }
     }
 
