@@ -1,10 +1,11 @@
 use std::ffi::c_void;
 use std::mem::{size_of, zeroed};
 use windows::Win32::{
-    Foundation::{HWND, RECT},
+    Foundation::{BOOL, HWND, RECT, TRUE},
     Graphics::Dwm::{
-        DwmGetWindowAttribute, DWMWA_CLOAKED, DWMWA_EXTENDED_FRAME_BOUNDS, DWM_CLOAKED_APP,
-        DWM_CLOAKED_INHERITED, DWM_CLOAKED_SHELL,
+        DwmGetWindowAttribute, DwmInvalidateIconicBitmaps, DwmSetWindowAttribute, DWMWA_CLOAKED,
+        DWMWA_EXTENDED_FRAME_BOUNDS, DWMWINDOWATTRIBUTE, DWM_CLOAKED_APP, DWM_CLOAKED_INHERITED,
+        DWM_CLOAKED_SHELL,
     },
     UI::WindowsAndMessaging::GetWindowRect,
 };
@@ -46,4 +47,23 @@ pub fn is_cloaked(hwnd: HWND) -> bool {
         ),
         _ => false,
     }
+}
+
+pub fn set_window_attribute(
+    hwnd: HWND,
+    dwattribute: DWMWINDOWATTRIBUTE,
+) -> windows::core::Result<()> {
+    let is_true: BOOL = TRUE;
+    unsafe {
+        DwmSetWindowAttribute(
+            hwnd,
+            dwattribute,
+            &is_true as *const BOOL as *const _,
+            size_of::<BOOL>() as u32,
+        )
+    }
+}
+
+pub fn invalidate_iconic_bitmaps(hwnd: HWND) -> windows::core::Result<()> {
+    unsafe { DwmInvalidateIconicBitmaps(hwnd) }
 }
