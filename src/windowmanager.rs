@@ -4,18 +4,16 @@ use log::{debug, error, info};
 use windows::Win32::{
     Foundation::{BOOL, HWND, LPARAM, LRESULT, RECT, TRUE, WPARAM},
     UI::WindowsAndMessaging::{
-        GW_OWNER,  HSHELL_WINDOWCREATED, HSHELL_WINDOWDESTROYED, WM_USER, WS_CHILD, WS_DISABLED,
+        GW_OWNER, HSHELL_WINDOWCREATED, HSHELL_WINDOWDESTROYED, WM_USER, WS_CHILD, WS_DISABLED,
         WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
     },
 };
 
+use crate::win32;
 use crate::{
-    arrange::spiral_subdivide,
-    config::Config,
-    win32::{virtualdesktop::VirtualDesktopManager},
+    arrange::spiral_subdivide, config::Config, win32::virtualdesktop::VirtualDesktopManager,
     window::Window,
 };
-use crate::win32;
 use grout_wm::{any, has_flag, Result};
 
 pub const MSG_UNCLOAKED: u32 = WM_USER;

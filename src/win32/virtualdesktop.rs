@@ -1,10 +1,8 @@
+use log::info;
 use windows::Win32::{
     Foundation::HWND,
-    UI::Shell::{
-        IVirtualDesktopManager, VirtualDesktopManager as VirtualDesktopManager_ID
-    }
+    UI::Shell::{IVirtualDesktopManager, VirtualDesktopManager as VirtualDesktopManager_ID},
 };
-use log::info;
 
 use grout_wm::Result;
 
