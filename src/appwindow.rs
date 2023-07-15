@@ -1,19 +1,26 @@
-use std::{ffi::c_void, sync::OnceLock};
+use std::{
+    ffi::{c_uchar, c_void},
+    sync::OnceLock,
+};
 
 use log::{debug, error, info};
 use windows::{
     w,
     Win32::{
         Foundation::{HWND, LPARAM, LRESULT, WPARAM},
-        Graphics::Gdi::{COLOR_WINDOW, HBRUSH},
+        Graphics::{
+            Dwm::{DWMWA_FORCE_ICONIC_REPRESENTATION, DWMWA_HAS_ICONIC_BITMAP},
+            Gdi::{BITMAPINFO, BITMAPINFOHEADER, COLOR_WINDOW, HBRUSH},
+        },
         UI::{
             Accessibility::{UnhookWinEvent, HWINEVENTHOOK},
             WindowsAndMessaging::{
                 CreateWindowExW, DeregisterShellHookWindow, CHILDID_SELF, CREATESTRUCTA,
                 CW_USEDEFAULT, EVENT_OBJECT_CLOAKED, EVENT_OBJECT_UNCLOAKED,
                 EVENT_SYSTEM_MINIMIZEEND, EVENT_SYSTEM_MINIMIZESTART, EVENT_SYSTEM_MOVESIZEEND,
-                EVENT_SYSTEM_MOVESIZESTART, GWLP_USERDATA, OBJID_WINDOW, WINDOW_EX_STYLE, WM_APP,
-                WM_CREATE, WM_DESTROY, WM_USER, WNDCLASSW, WS_OVERLAPPEDWINDOW, WM_SYSCOMMAND, SC_RESTORE,
+                EVENT_SYSTEM_MOVESIZESTART, GWLP_USERDATA, OBJID_WINDOW, SC_RESTORE,
+                WINDOW_EX_STYLE, WM_APP, WM_CREATE, WM_DESTROY, WM_DWMSENDICONICTHUMBNAIL,
+                WM_SYSCOMMAND, WM_USER, WNDCLASSW, WS_OVERLAPPEDWINDOW,
             },
         },
     },
@@ -22,12 +29,28 @@ use windows::{
 use grout_wm::Result;
 
 use crate::{
-    win32::{self, load_icon, get_module_handle, register_class, show_window, register_shell_hook_window, register_window_messagew, set_win_event_hook, def_window_proc, set_window_long_ptr, post_quit_message, get_window_long_ptr},
+    win32::{
+        self, def_window_proc, get_module_handle, get_window_long_ptr, get_working_area, load_icon,
+        post_quit_message, register_class, register_shell_hook_window, register_window_messagew,
+        set_win_event_hook, set_window_long_ptr, show_window,
+    },
     windowmanager::{
         WindowManager, MSG_CLOAKED, MSG_MINIMIZEEND, MSG_MINIMIZESTART, MSG_MOVESIZEEND,
         MSG_UNCLOAKED, SHELL_HOOK_ID,
     },
 };
+
+macro_rules! LOWORD {
+    ($w:expr) => {
+        $w & 0xFFFF
+    };
+}
+
+macro_rules! HIWORD {
+    ($w:expr) => {
+        ($w >> 16) & 0xFFFF
+    };
+}
 
 static MY_HWND: OnceLock<HWND> = OnceLock::new();
 
@@ -37,7 +60,6 @@ pub struct AppWindow {
     minimized_event_hook: HWINEVENTHOOK,
     movesize_event_hook: HWINEVENTHOOK,
 }
-
 
 impl AppWindow {
     pub fn new_window(wm: &mut WindowManager) -> Result<Self> {
@@ -68,8 +90,8 @@ impl AppWindow {
                 None,
                 None,
                 instance,
-                Some(wm as *mut _ as *mut c_void)
-                )
+                Some(wm as *mut _ as *mut c_void),
+            )
         };
         if hwnd.0 == 0 {
             error!("Could not create window");
@@ -78,7 +100,7 @@ impl AppWindow {
         let _ = MY_HWND.set(hwnd);
         Ok(Self {
             hwnd,
-            cloaked_event_hook: Default::default (),
+            cloaked_event_hook: Default::default(),
             minimized_event_hook: Default::default(),
             movesize_event_hook: Default::default(),
         })
@@ -106,17 +128,17 @@ impl AppWindow {
             EVENT_OBJECT_CLOAKED,
             EVENT_OBJECT_UNCLOAKED,
             Some(Self::wnd_event_proc),
-            );
+        );
         let minimized_event_hook = set_win_event_hook(
             EVENT_SYSTEM_MINIMIZESTART,
             EVENT_SYSTEM_MINIMIZEEND,
             Some(Self::wnd_event_proc),
-            );
+        );
         let movesize_event_hook = set_win_event_hook(
             EVENT_SYSTEM_MOVESIZESTART,
             EVENT_SYSTEM_MOVESIZEEND,
             Some(Self::wnd_event_proc),
-            );
+        );
         Ok(Self {
             hwnd: self.hwnd,
             cloaked_event_hook,
@@ -194,6 +216,16 @@ impl AppWindow {
                 let create_struct = lparam.0 as *const CREATESTRUCTA;
                 let wm = unsafe { (*create_struct).lpCreateParams as *mut WindowManager };
                 set_window_long_ptr(hwnd, GWLP_USERDATA, wm as _);
+                let _ = win32::dwm::set_window_attribute(hwnd, DWMWA_HAS_ICONIC_BITMAP);
+                let _ = win32::dwm::set_window_attribute(hwnd, DWMWA_FORCE_ICONIC_REPRESENTATION);
+                let _ = win32::dwm::invalidate_iconic_bitmaps(hwnd);
+                LRESULT(0)
+            }
+            WM_DWMSENDICONICTHUMBNAIL => {
+                debug!("WM_DWMSENDICONICTHUMBNAIL");
+                let width = HIWORD!(lparam.0);
+                let height = LOWORD!(lparam.0);
+                let _ = set_screenshot_as_iconic_thumbnail(hwnd, width, height);
                 LRESULT(0)
             }
             WM_SYSCOMMAND => {
@@ -212,4 +244,69 @@ impl AppWindow {
             }
         }
     }
+}
+
+fn set_screenshot_as_iconic_thumbnail(hwnd: HWND, thumb_w: isize, thumb_h: isize) -> Result<()> {
+    let working_area = get_working_area()?;
+    let w = working_area.right - working_area.left;
+    let h = working_area.bottom - working_area.top;
+    let hdc_mem = unsafe { windows::Win32::Graphics::Gdi::CreateCompatibleDC(None) };
+    if !hdc_mem.is_invalid() {
+        let mut bmi: BITMAPINFO = unsafe { std::mem::zeroed() };
+        bmi.bmiHeader.biSize = std::mem::size_of::<BITMAPINFOHEADER>() as u32;
+        bmi.bmiHeader.biWidth = thumb_w as i32;
+        bmi.bmiHeader.biHeight = thumb_h as i32;
+        bmi.bmiHeader.biPlanes = 1;
+        bmi.bmiHeader.biBitCount = 32;
+        let mut pb_ds = std::ptr::null_mut::<Vec<c_uchar>>();
+        let hbm_res = unsafe {
+            windows::Win32::Graphics::Gdi::CreateDIBSection(
+                hdc_mem,
+                &bmi as *const _ as *const _,
+                windows::Win32::Graphics::Gdi::DIB_RGB_COLORS,
+                &mut pb_ds as *mut _ as *mut _,
+                None,
+                0,
+            )
+        };
+        if let Ok(hbitmap) = hbm_res {
+            let hscreen = unsafe { windows::Win32::Graphics::Gdi::GetDC(None) };
+            let hdc = unsafe { windows::Win32::Graphics::Gdi::CreateCompatibleDC(hscreen) };
+            unsafe {
+                windows::Win32::Graphics::Gdi::SetStretchBltMode(
+                    hdc,
+                    windows::Win32::Graphics::Gdi::HALFTONE,
+                )
+            };
+            let old_obj = unsafe { windows::Win32::Graphics::Gdi::SelectObject(hdc, hbitmap) };
+            let _bret = unsafe {
+                windows::Win32::Graphics::Gdi::StretchBlt(
+                    hdc,
+                    0,
+                    0,
+                    thumb_w as i32,
+                    thumb_h as i32,
+                    hscreen,
+                    0,
+                    0,
+                    w,
+                    h,
+                    windows::Win32::Graphics::Gdi::SRCCOPY,
+                )
+            };
+            let dwm_res =
+                unsafe { windows::Win32::Graphics::Dwm::DwmSetIconicThumbnail(hwnd, hbitmap, 0) };
+            if let Err(e) = dwm_res {
+                dbg!(e);
+            }
+            // cleanup
+            unsafe {
+                windows::Win32::Graphics::Gdi::SelectObject(hdc, old_obj);
+                windows::Win32::Graphics::Gdi::DeleteDC(hdc);
+                windows::Win32::Graphics::Gdi::ReleaseDC(None, hscreen);
+                windows::Win32::Graphics::Gdi::DeleteObject(hbitmap);
+            }
+        }
+    }
+    Ok(())
 }
