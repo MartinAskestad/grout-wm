@@ -30,7 +30,7 @@ fn main() -> Result<()> {
     #[cfg(debug_assertions)]
     simple_logging::log_to_stderr(LevelFilter::Debug);
     info!("{} {} - starting", app_name, app_version);
-    let _win32 = win32::Win32Com::new().unwrap_or_else(|_e| {
+    let _win32 = win32::com::Win32Com::new().unwrap_or_else(|_e| {
         error!("Can not initialize com");
         std::process::exit(1);
     });

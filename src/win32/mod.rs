@@ -4,7 +4,7 @@ use std::{
     path::PathBuf,
 };
 
-use log::{debug, info};
+use log::debug;
 use windows::{
     core::PCWSTR,
     w,
@@ -13,15 +13,8 @@ use windows::{
             CloseHandle, GetLastError, BOOL, ERROR_ALREADY_EXISTS, FALSE, HANDLE, HMODULE, HWND,
             LPARAM, LRESULT, MAX_PATH, POINT, RECT, TRUE, WPARAM,
         },
-        Graphics::{
-            Dwm::{
-                DwmGetWindowAttribute, DWMWA_CLOAKED, DWMWA_EXTENDED_FRAME_BOUNDS, DWM_CLOAKED_APP,
-                DWM_CLOAKED_INHERITED, DWM_CLOAKED_SHELL,
-            },
-            Gdi::PtInRect,
-        },
+        Graphics::Gdi::PtInRect,
         System::{
-            Com::{CoCreateInstance, CoInitialize, CoUninitialize, CLSCTX_ALL},
             LibraryLoader::GetModuleHandleA,
             ProcessStatus::{
                 EnumProcessModules, GetModuleBaseNameW, GetModuleInformation, MODULEINFO,
@@ -32,21 +25,18 @@ use windows::{
         },
         UI::{
             Accessibility::{SetWinEventHook, HWINEVENTHOOK, WINEVENTPROC},
-            Shell::{
-                FOLDERID_LocalAppData, IVirtualDesktopManager, SHGetKnownFolderPath,
-                VirtualDesktopManager as VirtualDesktopManager_ID, KF_FLAG_DEFAULT,
-            },
+            Shell::{FOLDERID_LocalAppData, SHGetKnownFolderPath, KF_FLAG_DEFAULT},
             WindowsAndMessaging::{
                 DefWindowProcW, EnumWindows, FindWindowW, GetClassNameW, GetCursorPos,
-                GetSystemMetrics, GetWindow, GetWindowLongPtrW, GetWindowRect,
-                GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, IsIconic,
-                IsWindowVisible, PostMessageW, PostQuitMessage, RegisterClassW,
-                RegisterShellHookWindow, RegisterWindowMessageW, SetWindowLongPtrW, SetWindowPos,
-                ShowWindow, SystemParametersInfoW, GET_WINDOW_CMD, GWL_EXSTYLE, GWL_STYLE,
-                HWND_TOP, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
-                SM_YVIRTUALSCREEN, SPI_GETWORKAREA, SWP_NOACTIVATE, SW_SHOWMINNOACTIVE,
+                GetSystemMetrics, GetWindow, GetWindowLongPtrW, GetWindowTextLengthW,
+                GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindowVisible, LoadIconW,
+                PostMessageW, PostQuitMessage, RegisterClassW, RegisterShellHookWindow,
+                RegisterWindowMessageW, SetWindowLongPtrW, SetWindowPos, ShowWindow,
+                SystemParametersInfoW, GET_WINDOW_CMD, GWL_EXSTYLE, GWL_STYLE, HICON, HWND_TOP,
+                SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
+                SPI_GETWORKAREA, SWP_NOACTIVATE, SW_SHOWMINNOACTIVE,
                 SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, WINDOW_LONG_PTR_INDEX, WINEVENT_OUTOFCONTEXT,
-                WNDCLASSW, WNDENUMPROC, HICON, LoadIconW,
+                WNDCLASSW, WNDENUMPROC,
             },
         },
     },
@@ -54,44 +44,9 @@ use windows::{
 
 use grout_wm::Result;
 
-pub struct Win32Com;
-
-impl Win32Com {
-    pub fn new() -> Result<Self> {
-        info!("Initialize COM");
-        unsafe {
-            CoInitialize(None)?;
-        }
-        Ok(Win32Com)
-    }
-}
-
-impl Drop for Win32Com {
-    fn drop(&mut self) {
-        info!("Uninitializing COM");
-        unsafe {
-            CoUninitialize();
-        }
-    }
-}
-pub fn is_cloaked(hwnd: HWND) -> bool {
-    let mut cloaked: u32 = 0;
-    let res = unsafe {
-        DwmGetWindowAttribute(
-            hwnd,
-            DWMWA_CLOAKED,
-            (&mut cloaked as *mut u32).cast(),
-            size_of::<u32>().try_into().unwrap(),
-        )
-    };
-    match res {
-        Ok(_) => matches!(
-            cloaked,
-            DWM_CLOAKED_APP | DWM_CLOAKED_SHELL | DWM_CLOAKED_INHERITED
-        ),
-        _ => false,
-    }
-}
+pub(crate) mod com;
+pub(crate) mod dwm;
+pub(crate) mod virtualdesktop;
 
 pub fn is_iconic(hwnd: HWND) -> bool {
     unsafe { IsIconic(hwnd).into() }
@@ -145,7 +100,7 @@ pub fn get_working_area() -> Result<RECT> {
 }
 
 pub fn set_window_pos(hwnd: HWND, r: RECT) {
-    let margin = get_window_extended_frame_bounds(hwnd); // should be: { left: 7, top: 0, right:-7, bottom -7 }
+    let margin = dwm::get_window_extended_frame_bounds(hwnd); // should be: { left: 7, top: 0, right:-7, bottom -7 }
     debug!("{margin:?}");
     unsafe {
         SetWindowPos(
@@ -304,26 +259,6 @@ pub fn get_local_appdata_path() -> Result<PathBuf> {
     Ok(path)
 }
 
-pub fn get_window_extended_frame_bounds(hwnd: HWND) -> RECT {
-    let mut rect: RECT = unsafe { zeroed() };
-    let mut frame: RECT = unsafe { zeroed() };
-    unsafe {
-        GetWindowRect(hwnd, &mut rect);
-        let _ = DwmGetWindowAttribute(
-            hwnd,
-            DWMWA_EXTENDED_FRAME_BOUNDS,
-            &mut frame as *mut RECT as *mut c_void,
-            size_of::<RECT>().try_into().unwrap(),
-        );
-    }
-    RECT {
-        left: frame.left - rect.left,
-        top: frame.top - rect.top,
-        right: frame.right - rect.right,
-        bottom: frame.bottom - rect.bottom,
-    }
-}
-
 pub fn get_cursor_pos() -> POINT {
     let mut p: POINT = unsafe { zeroed() };
     unsafe {
@@ -336,29 +271,6 @@ pub fn point_in_rect(lprc: RECT, pt: POINT) -> bool {
     unsafe { PtInRect(&lprc, pt).into() }
 }
 
-pub fn load_icon(hinstance: HMODULE, lpiconname: PCWSTR) -> windows::core::Result<HICON>{
+pub fn load_icon(hinstance: HMODULE, lpiconname: PCWSTR) -> windows::core::Result<HICON> {
     unsafe { LoadIconW(hinstance, lpiconname) }
-}
-
-// =====
-// Virtual desktop
-// =====
-
-pub struct VirtualDesktopManager(IVirtualDesktopManager);
-
-impl VirtualDesktopManager {
-    pub fn new() -> Result<Self> {
-        info!("Instantiate VirtualDesktopManager");
-        unsafe {
-            CoInitialize(None)?;
-        }
-        let virtual_desktop_managr =
-            unsafe { CoCreateInstance(&VirtualDesktopManager_ID, None, CLSCTX_ALL)? };
-        Ok(Self(virtual_desktop_managr))
-    }
-
-    pub fn is_window_on_current_desktop(&self, hwnd: HWND) -> windows::core::Result<bool> {
-        let is_on_desktop = unsafe { self.0.IsWindowOnCurrentVirtualDesktop(hwnd)? };
-        Ok(is_on_desktop.as_bool())
-    }
 }
