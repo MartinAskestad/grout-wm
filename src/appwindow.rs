@@ -22,7 +22,7 @@ use windows::{
 use grout_wm::Result;
 
 use crate::{
-    win32,
+    win32::{self, load_icon},
     windowmanager::{
         WindowManager, MSG_CLOAKED, MSG_MINIMIZEEND, MSG_MINIMIZESTART, MSG_MOVESIZEEND,
         MSG_UNCLOAKED,
@@ -57,6 +57,7 @@ impl AppWindow {
             let windows_class = w!("grout-wm.window");
             let wc = WNDCLASSW {
                 hInstance: instance,
+                hIcon: load_icon(instance, w!("appicon"))?,
                 hbrBackground: HBRUSH((COLOR_WINDOW.0 + 1) as isize),
                 lpszClassName: windows_class,
                 lpfnWndProc: Some(Self::wnd_proc),

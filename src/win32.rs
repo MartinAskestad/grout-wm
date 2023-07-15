@@ -46,7 +46,7 @@ use windows::{
                 HWND_TOP, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
                 SM_YVIRTUALSCREEN, SPI_GETWORKAREA, SWP_NOACTIVATE, SW_SHOWMINNOACTIVE,
                 SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, WINDOW_LONG_PTR_INDEX, WINEVENT_OUTOFCONTEXT,
-                WNDCLASSW, WNDENUMPROC,
+                WNDCLASSW, WNDENUMPROC, HICON, LoadIconW,
             },
         },
     },
@@ -334,6 +334,10 @@ pub fn get_cursor_pos() -> POINT {
 
 pub fn point_in_rect(lprc: RECT, pt: POINT) -> bool {
     unsafe { PtInRect(&lprc, pt).into() }
+}
+
+pub fn load_icon(hinstance: HMODULE, lpiconname: PCWSTR) -> windows::core::Result<HICON>{
+    unsafe { LoadIconW(hinstance, lpiconname) }
 }
 
 // =====
