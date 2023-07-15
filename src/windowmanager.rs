@@ -1,3 +1,5 @@
+use std::sync::OnceLock;
+
 use log::{debug, error, info};
 use windows::Win32::{
     Foundation::{BOOL, HWND, LPARAM, LRESULT, RECT, TRUE, WPARAM},
@@ -21,10 +23,11 @@ pub const MSG_MINIMIZEEND: u32 = WM_USER + 0x0003;
 pub const MSG_MINIMIZESTART: u32 = WM_USER + 0x0004;
 pub const MSG_MOVESIZEEND: u32 = WM_USER + 0x0006;
 
+pub static SHELL_HOOK_ID: OnceLock<u32> = OnceLock::new();
+
 pub struct WindowManager {
     managed_windows: Vec<Window>,
     working_area: RECT,
-    shell_hook_id: u32,
     config: Config,
     virtual_desktop: VirtualDesktopManager,
 }
@@ -37,7 +40,6 @@ impl WindowManager {
         Ok(WindowManager {
             managed_windows: Default::default(),
             working_area,
-            shell_hook_id: Default::default(),
             config,
             virtual_desktop: VirtualDesktopManager::new()?,
         })
@@ -105,10 +107,6 @@ impl WindowManager {
         retval
     }
 
-    pub fn set_shell_hook_id(&mut self, shell_hook_id: u32) {
-        self.shell_hook_id = shell_hook_id;
-    }
-
     fn unmanage(&mut self, hwnd: HWND) {
         if !any!(self.managed_windows, hwnd) {
             return;
@@ -151,6 +149,7 @@ impl WindowManager {
         let handle = HWND(lparam.0);
         let managed_window = self.get_window(handle);
         let wmsg = wparam.0 as u32 & 0x7FFF;
+        let shell_hook_id = SHELL_HOOK_ID.get().unwrap_or(&0);
         match (msg, wmsg) {
             (MSG_CLOAKED, _) => {
                 if managed_window.is_some() {
@@ -192,14 +191,14 @@ impl WindowManager {
                     self.arrange();
                 }
             }
-            (id, HSHELL_WINDOWCREATED) if id == self.shell_hook_id => {
+            (id, HSHELL_WINDOWCREATED) if id == *shell_hook_id => {
                 if managed_window.is_none() && self.is_manageable(handle) {
                     debug!("{handle:?} is created");
                     self.manage(handle);
                     self.arrange();
                 }
             }
-            (id, HSHELL_WINDOWDESTROYED) if id == self.shell_hook_id => {
+            (id, HSHELL_WINDOWDESTROYED) if id == *shell_hook_id => {
                 if managed_window.is_some() {
                     debug!("{handle:?} is destroyed");
                     self.unmanage(handle);
@@ -214,6 +213,7 @@ impl WindowManager {
     pub fn enum_windows(&mut self) -> Result<&mut Self> {
         let self_ptr = LPARAM(self as *mut Self as isize);
         if win32::enum_windows(Some(Self::scan), self_ptr) {
+            self.arrange();
             Ok(self)
         } else {
             error!("Can not enum windows");
