@@ -48,7 +48,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - run: rustup componen add rustfmt
+      - run: rustup component add rustfmt
       - uses: actions-rs/cargo@v1
         with:
           command: fmt
