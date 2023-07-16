@@ -9,9 +9,8 @@ use windows::Win32::{
     },
 };
 
-use crate::win32;
 use crate::{
-    arrange::spiral_subdivide, config::Config, win32::virtualdesktop::VirtualDesktopManager,
+    arrange::Arrange, config::Config, win32, win32::virtualdesktop::VirtualDesktopManager,
     window::Window,
 };
 use grout_wm::{any, has_flag, Result};
@@ -134,7 +133,14 @@ impl WindowManager {
             })
             .collect();
         let number_of_windows = windows_on_screen.len();
-        let ds = spiral_subdivide(self.working_area, number_of_windows);
+        let method_name = "Columns";
+        let method = match method_name {
+            "Dwindle" => Arrange::Dwindle,
+            "Monocle" => Arrange::Monocle,
+            "Columns" => Arrange::Columns,
+            _ => Arrange::Dwindle,
+        };
+        let ds = method.arrange(self.working_area, number_of_windows);
         for (w, d) in windows_on_screen.iter().zip(ds.iter()) {
             win32::set_window_pos(w.0, *d);
         }
