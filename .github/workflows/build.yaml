@@ -87,7 +87,7 @@ jobs:
       - name: Create zip file
         run: |
           $outputPath = "${{ github.workspace }}\grout-wm.zip"
-          Compress-Archive -Path "${{ github.workspace }}\target\grout-wm.exe","${{ github.workspace }}\target\user.yaml","${{ github.workspace }}\target\default.yaml","${{ github.workspace }}\README.md" -DestinationPath grout-wm.zip
+          Compress-Archive -Path "${{ github.workspace }}\target\release\grout-wm.exe","${{ github.workspace }}\target\release\user.yaml","${{ github.workspace }}\target\release\default.yaml","${{ github.workspace }}\README.md" -DestinationPath grout-wm.zip
         shell: pwsh
       - name: Create release
         uses: softprops/action-gh-release@v1
