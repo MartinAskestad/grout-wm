@@ -1,2 +1,7 @@
+# To exclude a window or program from being managed you can use
+# class_names, titles or process_names
 class_names:
    - TaskManagerWindow
+
+# Different layouts are Dwindle, Columns and Monocle
+layout: Dwindle
