@@ -15,6 +15,8 @@ pub struct Config {
     pub class_names: Option<Vec<String>>,
     pub process_names: Option<Vec<String>>,
     pub titles: Option<Vec<String>>,
+    #[serde(rename = "layout")]
+    pub default_layout: Option<String>,
 }
 
 impl std::ops::Add for Config {
@@ -25,6 +27,7 @@ impl std::ops::Add for Config {
             class_names: merge_option_vecs(self.class_names, other.class_names),
             process_names: merge_option_vecs(self.process_names, other.process_names),
             titles: merge_option_vecs(self.titles, other.titles),
+            default_layout: merge_option_string(self.default_layout, other.default_layout),
         }
     }
 }
@@ -69,5 +72,14 @@ fn merge_option_vecs<T>(a: Option<Vec<T>>, b: Option<Vec<T>>) -> Option<Vec<T>> 
         (Some(v1), None) => Some(v1),
         (None, Some(v2)) => Some(v2),
         (None, None) => None,
+    }
+}
+
+fn merge_option_string(lhs: Option<String>, rhs: Option<String>) -> Option<String> {
+    match (lhs, rhs) {
+        (Some(_), Some(b)) => Some(b),
+        (Some(a), None) => Some(a),
+        (None, Some(b)) => Some(b),
+        _ => None,
     }
 }
