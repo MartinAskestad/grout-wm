@@ -20,7 +20,7 @@ use windows::{
                 EVENT_SYSTEM_MINIMIZEEND, EVENT_SYSTEM_MINIMIZESTART, EVENT_SYSTEM_MOVESIZEEND,
                 EVENT_SYSTEM_MOVESIZESTART, GWLP_USERDATA, OBJID_WINDOW, SC_RESTORE,
                 WINDOW_EX_STYLE, WM_APP, WM_CREATE, WM_DESTROY, WM_DWMSENDICONICTHUMBNAIL,
-                WM_SYSCOMMAND, WM_USER, WNDCLASSW, WS_OVERLAPPEDWINDOW, WM_QUERYOPEN,
+                WM_QUERYOPEN, WM_SYSCOMMAND, WM_USER, WNDCLASSW, WS_OVERLAPPEDWINDOW,
             },
         },
     },
@@ -235,9 +235,7 @@ impl AppWindow {
                 }
                 def_window_proc(hwnd, msg, wparam, lparam)
             }
-            WM_QUERYOPEN => {
-                LRESULT(0)
-            }
+            WM_QUERYOPEN => LRESULT(0),
             _ => {
                 let wm = get_window_long_ptr(hwnd, GWLP_USERDATA) as *mut WindowManager;
                 if !wm.is_null() {
