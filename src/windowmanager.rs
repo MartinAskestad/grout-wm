@@ -133,11 +133,15 @@ impl WindowManager {
             })
             .collect();
         let number_of_windows = windows_on_screen.len();
-        let method_name = "Columns";
-        let method = match method_name {
-            "Dwindle" => Arrange::Dwindle,
-            "Monocle" => Arrange::Monocle,
-            "Columns" => Arrange::Columns,
+        let method = match &self.config.default_layout {
+            // TODO: what the heck? there
+            // must be a better way?
+            Some(s) => match s.as_str() {
+                "Dwindle" => Arrange::Dwindle,
+                "Monocle" => Arrange::Monocle,
+                "Columns" => Arrange::Columns,
+                _ => Arrange::Dwindle,
+            },
             _ => Arrange::Dwindle,
         };
         let ds = method.arrange(self.working_area, number_of_windows);
