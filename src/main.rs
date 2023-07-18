@@ -6,8 +6,8 @@ use std::env;
 use grout_wm::Result;
 
 mod appwindow;
-mod arrange;
 mod config;
+mod layout;
 mod win32;
 mod window;
 mod windowmanager;

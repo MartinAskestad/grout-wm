@@ -71,18 +71,18 @@ fn columns(bounds: RECT, n: usize) -> Vec<RECT> {
     divisions
 }
 
-pub enum Arrange {
+pub enum Layouts {
     Dwindle,
     Monocle,
     Columns,
 }
 
-impl Arrange {
+impl Layouts {
     pub fn arrange(&self, bounds: RECT, n: usize) -> Vec<RECT> {
         match self {
-            Arrange::Dwindle => spiral_subdivide(bounds, n),
-            Arrange::Monocle => monocle(bounds, n),
-            Arrange::Columns => columns(bounds, n),
+            Layouts::Dwindle => spiral_subdivide(bounds, n),
+            Layouts::Monocle => monocle(bounds, n),
+            Layouts::Columns => columns(bounds, n),
         }
     }
 }
