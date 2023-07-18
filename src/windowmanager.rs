@@ -10,7 +10,7 @@ use windows::Win32::{
 };
 
 use crate::{
-    arrange::Arrange, config::Config, win32, win32::virtualdesktop::VirtualDesktopManager,
+    layout::Layouts, config::Config, win32, win32::virtualdesktop::VirtualDesktopManager,
     window::Window,
 };
 use grout_wm::{any, has_flag, Result};
@@ -137,12 +137,12 @@ impl WindowManager {
             // TODO: what the heck? there
             // must be a better way?
             Some(s) => match s.as_str() {
-                "Dwindle" => Arrange::Dwindle,
-                "Monocle" => Arrange::Monocle,
-                "Columns" => Arrange::Columns,
-                _ => Arrange::Dwindle,
+                "Dwindle" => Layouts::Dwindle,
+                "Monocle" => Layouts::Monocle,
+                "Columns" => Layouts::Columns,
+                _ => Layouts::Dwindle,
             },
-            _ => Arrange::Dwindle,
+            _ => Layouts::Dwindle,
         };
         let ds = method.arrange(self.working_area, number_of_windows);
         for (w, d) in windows_on_screen.iter().zip(ds.iter()) {
