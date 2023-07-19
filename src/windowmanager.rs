@@ -10,7 +10,7 @@ use windows::Win32::{
 };
 
 use crate::{
-    layout::Layouts, config::Config, win32, win32::virtualdesktop::VirtualDesktopManager,
+    config::Config, layout::Layouts, win32, win32::virtualdesktop::VirtualDesktopManager,
     window::Window,
 };
 use grout_wm::{any, has_flag, Result};

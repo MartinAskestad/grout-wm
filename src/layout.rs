@@ -53,17 +53,14 @@ fn monocle(bounds: RECT, n: usize) -> Vec<RECT> {
 
 fn columns(bounds: RECT, n: usize) -> Vec<RECT> {
     let column_width = (bounds.right - bounds.left) / n as i32;
-    let mut divisions: Vec<RECT> = vec![];
-    for i in 0..n {
-        let division = RECT {
-            top: bounds.top,
-            bottom: bounds.bottom,
+    (0..n)
+        .map(|i| RECT {
             left: i as i32 * column_width,
+            top: bounds.top,
             right: i as i32 * column_width + column_width,
-        };
-        divisions.push(division);
-    }
-    divisions
+            bottom: bounds.bottom,
+        })
+        .collect()
 }
 
 pub enum Layouts {
