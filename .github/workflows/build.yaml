@@ -1,4 +1,4 @@
-name: Build and Test
+name: Check code
 
 on:
   pull_request:
@@ -69,27 +69,3 @@ jobs:
         with:
           command: clippy
           args: -- -D warnings
-
-  build:
-    needs: [test]
-    runs-on: windows-latest
-    if: github.ref == 'refs/heads/master'
-
-    steps:
-      - uses: actions/checkout@master
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release
-      - name: Create zip file
-        run: |
-          $outputPath = "${{ github.workspace }}\grout-wm.zip"
-          Compress-Archive -Path "${{ github.workspace }}\target\release\grout-wm.exe","${{ github.workspace }}\target\release\user.yaml","${{ github.workspace }}\target\release\default.yaml","${{ github.workspace }}\README.md" -DestinationPath grout-wm.zip
-        shell: pwsh
-      - name: Create release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: "${{ github.workspace }}/grout-wm.zip"
