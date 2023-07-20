@@ -1,8 +1,8 @@
 use windows::Win32::Foundation::RECT;
 
 fn dwindle(bounds: RECT, n: usize) -> Vec<RECT> {
-    (1..n).fold(vec![bounds.clone()], |acc, v| {
-        let mut my_acc = acc.clone();
+    (1..n).fold(vec![bounds], |acc, v| {
+        let mut my_acc = acc;
         let bounds = my_acc.pop().unwrap();
         let vertical = v % 2 != 0;
         let RECT {
@@ -78,7 +78,7 @@ fn focus(bounds: RECT, n: usize) -> Vec<RECT> {
         .map(|n| n as i32)
         .enumerate()
         .map(|(idx, val)| match (n, idx, val) {
-            (1, _, _) => bounds.clone(),
+            (1, _, _) => bounds,
             (2, 0, _) => RECT {
                 left: bounds.left,
                 top: bounds.top,
