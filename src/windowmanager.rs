@@ -140,6 +140,7 @@ impl WindowManager {
                 "Dwindle" => Layouts::Dwindle,
                 "Monocle" => Layouts::Monocle,
                 "Columns" => Layouts::Columns,
+                "Focus" => Layouts::Focus,
                 _ => Layouts::Dwindle,
             },
             _ => Layouts::Dwindle,

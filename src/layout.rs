@@ -63,10 +63,60 @@ fn columns(bounds: RECT, n: usize) -> Vec<RECT> {
         .collect()
 }
 
+fn focus(bounds: RECT, n: usize) -> Vec<RECT> {
+    let lhs: Vec<_> = (0..n).skip(1).filter(|&x| x % 2 == 0).map(|n|n as i32).collect();
+    let rhs: Vec<_> = (0..n).skip(1).filter(|&x| x % 2 != 0).map(|n|n as i32).collect();
+    (0..n)
+        .map(|n| n as i32)
+        .enumerate()
+        .map(|(idx, val)| match (n, idx, val) {
+            (1, _, _) => bounds.clone(),
+            (2, 0, _) => RECT {
+                left: bounds.left,
+                top: bounds.top,
+                right: bounds.right - (bounds.right / 4),
+                bottom: bounds.bottom,
+            },
+            (2, 1, _) => RECT {
+                left: bounds.right - (bounds.right / 4),
+                top: bounds.top,
+                right: bounds.right,
+                bottom: bounds.bottom,
+            },
+            (_, 0, _) => RECT {
+                left: bounds.left + (bounds.right / 4),
+                top: bounds.top,
+                right: bounds.right - (bounds.right / 4),
+                bottom: bounds.bottom,
+            },
+            (_, _, v) if v % 2 != 0 => RECT {
+                left: bounds.right - (bounds.right / 4),
+                top: (bounds.bottom / rhs.len() as i32)
+                    * rhs.iter().position(|&x| x == v).unwrap() as i32,
+                right: bounds.right,
+                bottom: (bounds.bottom / rhs.len() as i32)
+                    * rhs.iter().position(|&x| x == v).unwrap() as i32
+                    + bounds.bottom / rhs.len() as i32,
+            },
+            (_, _, v) if v % 2 == 0 => RECT {
+                left: bounds.left,
+                top: (bounds.bottom / lhs.len() as i32)
+                    * lhs.iter().position(|&x| x == v).unwrap() as i32,
+                right: bounds.left + (bounds.right / 4),
+                bottom: (bounds.bottom / lhs.len() as i32)
+                    * lhs.iter().position(|&x| x == v).unwrap() as i32
+                    + bounds.bottom / lhs.len() as i32,
+            },
+            _ => Default::default(),
+        })
+        .collect()
+}
+
 pub enum Layouts {
     Dwindle,
     Monocle,
     Columns,
+    Focus,
 }
 
 impl Layouts {
@@ -75,6 +125,7 @@ impl Layouts {
             Layouts::Dwindle => dwindle(bounds, n),
             Layouts::Monocle => monocle(bounds, n),
             Layouts::Columns => columns(bounds, n),
+            Layouts::Focus => focus(bounds, n),
         }
     }
 }
