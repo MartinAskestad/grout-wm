@@ -64,8 +64,16 @@ fn columns(bounds: RECT, n: usize) -> Vec<RECT> {
 }
 
 fn focus(bounds: RECT, n: usize) -> Vec<RECT> {
-    let lhs: Vec<_> = (0..n).skip(1).filter(|&x| x % 2 == 0).map(|n|n as i32).collect();
-    let rhs: Vec<_> = (0..n).skip(1).filter(|&x| x % 2 != 0).map(|n|n as i32).collect();
+    let lhs: Vec<_> = (0..n)
+        .skip(1)
+        .filter(|&x| x % 2 == 0)
+        .map(|n| n as i32)
+        .collect();
+    let rhs: Vec<_> = (0..n)
+        .skip(1)
+        .filter(|&x| x % 2 != 0)
+        .map(|n| n as i32)
+        .collect();
     (0..n)
         .map(|n| n as i32)
         .enumerate()
