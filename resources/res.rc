@@ -1,1 +1,7 @@
 appicon ICON "app.ico"
+
+dwindle ICON "dwindle.ico"
+monocle ICON "monocle.ico"
+columns ICON "columns.ico"
+focus ICON "focus.ico"
+

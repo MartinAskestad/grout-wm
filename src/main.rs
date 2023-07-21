@@ -40,6 +40,7 @@ fn main() -> Result<()> {
     let _appwindow = AppWindow::new_window(wm)?
         .show_window()?
         .register_hooks()?
+        .set_thumb_buttons()?
         .handle_messages()?
         .cleanup();
     info!("quitting");
