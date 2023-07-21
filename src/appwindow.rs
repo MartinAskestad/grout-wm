@@ -171,7 +171,7 @@ impl AppWindow {
                 ..Default::default()
             },
         ];
-        let taskbarlist = win32::thumbar::TaskbarList::new()?;
+        let taskbarlist = win32::taskbar::TaskbarList::new()?;
         taskbarlist.thumb_bar_add_buttons(self.hwnd, &buttons)?;
         Ok(Self {
             hwnd: self.hwnd,
