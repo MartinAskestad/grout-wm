@@ -120,20 +120,20 @@ fn focus(bounds: RECT, n: usize) -> Vec<RECT> {
         .collect()
 }
 
-pub enum Layouts {
+pub enum Layout {
     Dwindle,
     Monocle,
     Columns,
     Focus,
 }
 
-impl Layouts {
+impl Layout {
     pub fn arrange(&self, bounds: RECT, n: usize) -> Vec<RECT> {
         match self {
-            Layouts::Dwindle => dwindle(bounds, n),
-            Layouts::Monocle => monocle(bounds, n),
-            Layouts::Columns => columns(bounds, n),
-            Layouts::Focus => focus(bounds, n),
+            Layout::Dwindle => dwindle(bounds, n),
+            Layout::Monocle => monocle(bounds, n),
+            Layout::Columns => columns(bounds, n),
+            Layout::Focus => focus(bounds, n),
         }
     }
 }

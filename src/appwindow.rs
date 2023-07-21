@@ -26,7 +26,7 @@ use windows::{
     },
 };
 
-use grout_wm::Result;
+use grout_wm::{Result, HIWORD, LOWORD};
 
 use crate::{
     win32::{
@@ -39,18 +39,6 @@ use crate::{
         MSG_UNCLOAKED, SHELL_HOOK_ID,
     },
 };
-
-macro_rules! LOWORD {
-    ($w:expr) => {
-        $w & 0xFFFF
-    };
-}
-
-macro_rules! HIWORD {
-    ($w:expr) => {
-        ($w >> 16) & 0xFFFF
-    };
-}
 
 static MY_HWND: OnceLock<HWND> = OnceLock::new();
 
@@ -98,6 +86,7 @@ impl AppWindow {
             return Err("Could not create window".into());
         }
         let _ = MY_HWND.set(hwnd);
+        wm.set_hwnd(hwnd);
         Ok(Self {
             hwnd,
             cloaked_event_hook: Default::default(),
@@ -144,6 +133,51 @@ impl AppWindow {
             cloaked_event_hook,
             minimized_event_hook,
             movesize_event_hook,
+        })
+    }
+
+    pub fn set_thumb_buttons(self) -> Result<Self> {
+        let instance = get_module_handle()?;
+        let dw_mask = windows::Win32::UI::Shell::THB_ICON
+            | windows::Win32::UI::Shell::THB_TOOLTIP
+            | windows::Win32::UI::Shell::THB_FLAGS;
+        let buttons: Vec<windows::Win32::UI::Shell::THUMBBUTTON> = vec![
+            windows::Win32::UI::Shell::THUMBBUTTON {
+                dwMask: dw_mask,
+                iId: 0,
+                hIcon: load_icon(instance, w!("dwindle")).unwrap(),
+                dwFlags: windows::Win32::UI::Shell::THBF_DISMISSONCLICK,
+                ..Default::default()
+            },
+            windows::Win32::UI::Shell::THUMBBUTTON {
+                dwMask: dw_mask,
+                iId: 1,
+                hIcon: load_icon(instance, w!("monocle")).unwrap(),
+                dwFlags: windows::Win32::UI::Shell::THBF_DISMISSONCLICK,
+                ..Default::default()
+            },
+            windows::Win32::UI::Shell::THUMBBUTTON {
+                dwMask: dw_mask,
+                iId: 2,
+                hIcon: load_icon(instance, w!("columns")).unwrap(),
+                dwFlags: windows::Win32::UI::Shell::THBF_DISMISSONCLICK,
+                ..Default::default()
+            },
+            windows::Win32::UI::Shell::THUMBBUTTON {
+                dwMask: dw_mask,
+                iId: 3,
+                hIcon: load_icon(instance, w!("focus")).unwrap(),
+                dwFlags: windows::Win32::UI::Shell::THBF_DISMISSONCLICK,
+                ..Default::default()
+            },
+        ];
+        let taskbarlist = win32::thumbar::TaskbarList::new()?;
+        taskbarlist.thumb_bar_add_buttons(self.hwnd, &buttons)?;
+        Ok(Self {
+            hwnd: self.hwnd,
+            cloaked_event_hook: self.cloaked_event_hook,
+            minimized_event_hook: self.minimized_event_hook,
+            movesize_event_hook: self.movesize_event_hook,
         })
     }
 

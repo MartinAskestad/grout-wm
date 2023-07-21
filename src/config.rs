@@ -8,7 +8,7 @@ use std::{
     path::Path,
 };
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct Config {
     #[serde(rename = "Windows.UI.Core.CoreWindow")]
     pub windows_ui_core_corewindow: Option<Vec<String>>,

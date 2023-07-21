@@ -4,16 +4,16 @@ use log::{debug, error, info};
 use windows::Win32::{
     Foundation::{BOOL, HWND, LPARAM, LRESULT, RECT, TRUE, WPARAM},
     UI::WindowsAndMessaging::{
-        GW_OWNER, HSHELL_WINDOWCREATED, HSHELL_WINDOWDESTROYED, WM_USER, WS_CHILD, WS_DISABLED,
-        WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+        GW_OWNER, HSHELL_WINDOWCREATED, HSHELL_WINDOWDESTROYED, WM_COMMAND, WM_USER, WS_CHILD,
+        WS_DISABLED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
     },
 };
 
 use crate::{
-    config::Config, layout::Layouts, win32, win32::virtualdesktop::VirtualDesktopManager,
+    config::Config, layout::Layout, win32, win32::virtualdesktop::VirtualDesktopManager,
     window::Window,
 };
-use grout_wm::{any, has_flag, Result};
+use grout_wm::{any, has_flag, Result, LOWORD};
 
 pub const MSG_UNCLOAKED: u32 = WM_USER;
 pub const MSG_CLOAKED: u32 = WM_USER + 0x0001;
@@ -28,6 +28,8 @@ pub struct WindowManager {
     working_area: RECT,
     config: Config,
     virtual_desktop: VirtualDesktopManager,
+    layout: Layout,
+    hwnd: HWND,
 }
 
 impl WindowManager {
@@ -35,11 +37,19 @@ impl WindowManager {
         info!("Create new instance of window manager");
         let working_area = win32::get_working_area()?;
         info!("Working area is {:?}", working_area);
+        let layout = match config.default_layout.as_ref().map(String::as_ref) {
+            Some("Monocle") => Layout::Monocle,
+            Some("Columns") => Layout::Columns,
+            Some("Focus") => Layout::Focus,
+            _ => Layout::Dwindle,
+        };
         Ok(WindowManager {
             managed_windows: Default::default(),
             working_area,
             config,
             virtual_desktop: VirtualDesktopManager::new()?,
+            layout,
+            hwnd: Default::default(),
         })
     }
 
@@ -115,8 +125,6 @@ impl WindowManager {
             .unwrap_or(false);
         if is_on_desktop {
             self.managed_windows.retain(|w| w.0 != hwnd);
-        } else {
-            self.arrange();
         }
     }
 
@@ -133,22 +141,11 @@ impl WindowManager {
             })
             .collect();
         let number_of_windows = windows_on_screen.len();
-        let method = match &self.config.default_layout {
-            // TODO: what the heck? there
-            // must be a better way?
-            Some(s) => match s.as_str() {
-                "Dwindle" => Layouts::Dwindle,
-                "Monocle" => Layouts::Monocle,
-                "Columns" => Layouts::Columns,
-                "Focus" => Layouts::Focus,
-                _ => Layouts::Dwindle,
-            },
-            _ => Layouts::Dwindle,
-        };
-        let ds = method.arrange(self.working_area, number_of_windows);
+        let ds = self.layout.arrange(self.working_area, number_of_windows);
         for (w, d) in windows_on_screen.iter().zip(ds.iter()) {
             win32::set_window_pos(w.0, *d);
         }
+        let _ = win32::dwm::invalidate_iconic_bitmaps(self.hwnd);
     }
 
     pub fn message_loop(
@@ -160,9 +157,25 @@ impl WindowManager {
     ) -> LRESULT {
         let handle = HWND(lparam.0);
         let managed_window = self.get_window(handle);
-        let wmsg = wparam.0 as u32 & 0x7FFF;
+        let wmsg = LOWORD!(wparam.0) as u32;
         let shell_hook_id = SHELL_HOOK_ID.get().unwrap_or(&0);
         match (msg, wmsg) {
+            (WM_COMMAND, 0) => {
+                self.set_layout(Layout::Dwindle);
+                self.arrange();
+            }
+            (WM_COMMAND, 1) => {
+                self.set_layout(Layout::Monocle);
+                self.arrange();
+            }
+            (WM_COMMAND, 2) => {
+                self.set_layout(Layout::Columns);
+                self.arrange();
+            }
+            (WM_COMMAND, 3) => {
+                self.set_layout(Layout::Focus);
+                self.arrange();
+            }
             (MSG_CLOAKED, _) => {
                 if managed_window.is_some() {
                     debug!("Cloaked: {managed_window:#?}");
@@ -239,5 +252,13 @@ impl WindowManager {
             wm.manage(hwnd);
         }
         TRUE
+    }
+
+    pub fn set_layout(&mut self, layout: Layout) {
+        self.layout = layout;
+    }
+
+    pub fn set_hwnd(&mut self, hwnd: HWND) {
+        self.hwnd = hwnd;
     }
 }
