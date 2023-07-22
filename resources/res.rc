@@ -1,7 +1,11 @@
 appicon ICON "app.ico"
 
-dwindle ICON "dwindle.ico"
-monocle ICON "monocle.ico"
-columns ICON "columns.ico"
-focus ICON "focus.ico"
+dwindle-blk ICON "dwindle-blk.ico"
+monocle-blk ICON "monocle-blk.ico"
+columns-blk ICON "columns-blk.ico"
+focus-blk ICON "focus-blk.ico"
 
+dwindle-wht ICON "dwindle-wht.ico"
+monocle-wht ICON "monocle-wht.ico"
+columns-wht ICON "columns-wht.ico"
+focus-wht ICON "focus-wht.ico"

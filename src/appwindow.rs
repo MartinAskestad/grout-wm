@@ -26,7 +26,7 @@ use windows::{
     },
 };
 
-use grout_wm::{Result, HIWORD, LOWORD};
+use grout_wm::{Result, HIWORD, LOWORD, to_wide_arr};
 
 use crate::{
     win32::{
@@ -137,37 +137,46 @@ impl AppWindow {
     }
 
     pub fn set_thumb_buttons(self) -> Result<Self> {
+        let is_light_theme = win32::theme::is_light_theme();
         let instance = get_module_handle()?;
         let dw_mask = windows::Win32::UI::Shell::THB_ICON
             | windows::Win32::UI::Shell::THB_TOOLTIP
             | windows::Win32::UI::Shell::THB_FLAGS;
+        let dwindle_icon = if is_light_theme { w!("dwindle-blk") } else { w!("dwindle-wht") };
+        let monocle_icon = if is_light_theme { w!("monocle-blk") } else { w!("monocle-wht") };
+        let columns_icon = if is_light_theme { w!("columns-blk") } else { w!("columns-wht") };
+        let focus_icon = if is_light_theme { w!("focus-blk") } else { w!("focus-wht") };
         let buttons: Vec<windows::Win32::UI::Shell::THUMBBUTTON> = vec![
             windows::Win32::UI::Shell::THUMBBUTTON {
                 dwMask: dw_mask,
                 iId: 0,
-                hIcon: load_icon(instance, w!("dwindle")).unwrap(),
+                hIcon: load_icon(instance, dwindle_icon).unwrap(),
                 dwFlags: windows::Win32::UI::Shell::THBF_DISMISSONCLICK,
+                szTip: to_wide_arr!("Dwindle layout"),
                 ..Default::default()
             },
             windows::Win32::UI::Shell::THUMBBUTTON {
                 dwMask: dw_mask,
                 iId: 1,
-                hIcon: load_icon(instance, w!("monocle")).unwrap(),
+                hIcon: load_icon(instance, monocle_icon).unwrap(),
                 dwFlags: windows::Win32::UI::Shell::THBF_DISMISSONCLICK,
+                szTip: to_wide_arr!("Monocle layout"),
                 ..Default::default()
             },
             windows::Win32::UI::Shell::THUMBBUTTON {
                 dwMask: dw_mask,
                 iId: 2,
-                hIcon: load_icon(instance, w!("columns")).unwrap(),
+                hIcon: load_icon(instance, columns_icon).unwrap(),
                 dwFlags: windows::Win32::UI::Shell::THBF_DISMISSONCLICK,
+                szTip: to_wide_arr!("Columns layout"),
                 ..Default::default()
             },
             windows::Win32::UI::Shell::THUMBBUTTON {
                 dwMask: dw_mask,
                 iId: 3,
-                hIcon: load_icon(instance, w!("focus")).unwrap(),
+                hIcon: load_icon(instance, focus_icon).unwrap(),
                 dwFlags: windows::Win32::UI::Shell::THBF_DISMISSONCLICK,
+                szTip: to_wide_arr!("Focus layout"),
                 ..Default::default()
             },
         ];

@@ -47,6 +47,7 @@ use grout_wm::Result;
 pub(crate) mod com;
 pub(crate) mod dwm;
 pub(crate) mod taskbar;
+pub(crate) mod theme;
 pub(crate) mod virtualdesktop;
 
 pub fn is_iconic(hwnd: HWND) -> bool {

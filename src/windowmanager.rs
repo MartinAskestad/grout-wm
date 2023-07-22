@@ -4,8 +4,8 @@ use log::{debug, error, info};
 use windows::Win32::{
     Foundation::{BOOL, HWND, LPARAM, LRESULT, RECT, TRUE, WPARAM},
     UI::WindowsAndMessaging::{
-        GW_OWNER, HSHELL_WINDOWCREATED, HSHELL_WINDOWDESTROYED, WM_COMMAND, WM_USER, WS_CHILD,
-        WS_DISABLED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+        GW_OWNER, HSHELL_WINDOWCREATED, HSHELL_WINDOWDESTROYED, WM_COMMAND, WM_DISPLAYCHANGE,
+        WM_USER, WS_CHILD, WS_DISABLED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
     },
 };
 
@@ -160,6 +160,10 @@ impl WindowManager {
         let wmsg = LOWORD!(wparam.0) as u32;
         let shell_hook_id = SHELL_HOOK_ID.get().unwrap_or(&0);
         match (msg, wmsg) {
+            (WM_DISPLAYCHANGE, _) => {
+                self.working_area = win32::get_working_area().unwrap();
+                self.arrange();
+            }
             (WM_COMMAND, 0) => {
                 self.set_layout(Layout::Dwindle);
                 self.arrange();
