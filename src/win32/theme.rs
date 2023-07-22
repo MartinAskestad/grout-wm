@@ -21,10 +21,8 @@ pub fn is_light_theme() -> bool {
             Some(&mut size),
         )
     };
-    if res != ERROR_SUCCESS {
-        if res == ERROR_FILE_NOT_FOUND {
-            return true;
-        }
+    if res != ERROR_SUCCESS && res == ERROR_FILE_NOT_FOUND {
+        return true;
     }
     i32::from_le_bytes(buffer) == 1
 }
