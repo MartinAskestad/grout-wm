@@ -31,12 +31,12 @@ macro_rules! to_wide_arr {
     ($input:expr) => {{
         let mut result: [u16; 260] = [0; 260];
         let chars = $input.chars().take(260);
-        for(i, ch) in chars.enumerate() {
+        for (i, ch) in chars.enumerate() {
             result[i] = ch as u16;
         }
         result
     }};
-        }
+}
 
 pub struct Error {
     pub(crate) message: String,

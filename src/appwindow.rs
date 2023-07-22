@@ -26,7 +26,7 @@ use windows::{
     },
 };
 
-use grout_wm::{Result, HIWORD, LOWORD, to_wide_arr};
+use grout_wm::{to_wide_arr, Result, HIWORD, LOWORD};
 
 use crate::{
     win32::{
@@ -142,10 +142,26 @@ impl AppWindow {
         let dw_mask = windows::Win32::UI::Shell::THB_ICON
             | windows::Win32::UI::Shell::THB_TOOLTIP
             | windows::Win32::UI::Shell::THB_FLAGS;
-        let dwindle_icon = if is_light_theme { w!("dwindle-blk") } else { w!("dwindle-wht") };
-        let monocle_icon = if is_light_theme { w!("monocle-blk") } else { w!("monocle-wht") };
-        let columns_icon = if is_light_theme { w!("columns-blk") } else { w!("columns-wht") };
-        let focus_icon = if is_light_theme { w!("focus-blk") } else { w!("focus-wht") };
+        let dwindle_icon = if is_light_theme {
+            w!("dwindle-blk")
+        } else {
+            w!("dwindle-wht")
+        };
+        let monocle_icon = if is_light_theme {
+            w!("monocle-blk")
+        } else {
+            w!("monocle-wht")
+        };
+        let columns_icon = if is_light_theme {
+            w!("columns-blk")
+        } else {
+            w!("columns-wht")
+        };
+        let focus_icon = if is_light_theme {
+            w!("focus-blk")
+        } else {
+            w!("focus-wht")
+        };
         let buttons: Vec<windows::Win32::UI::Shell::THUMBBUTTON> = vec![
             windows::Win32::UI::Shell::THUMBBUTTON {
                 dwMask: dw_mask,
