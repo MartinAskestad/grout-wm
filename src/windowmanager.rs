@@ -86,7 +86,7 @@ impl WindowManager {
         let process_name = win32::get_exe_filename(hwnd);
         let title_len = win32::get_window_text_length(hwnd);
         let owner = win32::get_window(hwnd, GW_OWNER);
-        if title_len == 0 || is_disabled {
+        if title_len == 0 || is_disabled || process_name.is_none() {
             return false;
         }
         if let Some(titles) = &self.config.windows_ui_core_corewindow {
@@ -215,7 +215,10 @@ impl WindowManager {
                             .iter()
                             .position(|&w| w.0 == window.0)
                             .unwrap();
-                        self.managed_windows.swap(window_idx, landed_on_idx);
+                        if window_idx != landed_on_idx {
+                            let window = self.managed_windows.remove(window_idx);
+                            self.managed_windows.insert(landed_on_idx, window);
+                        }
                     }
                     self.arrange();
                 }
