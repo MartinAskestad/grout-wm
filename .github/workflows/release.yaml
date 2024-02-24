@@ -1,0 +1,108 @@
+name: Release
+
+on:
+  push:
+    tags:
+    - "[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    name: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: GEt the reelase version from the tag
+        if: env.VERSION == ''
+        run: echo "VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
+      - name: Show the version
+        run: echo "version if $VERSION"
+      - name: Check that the tag version and Cargo.toml versions are the same
+        shell: bash
+        run: |
+          if ! grep -q "version = "\$VERSION\"" Cargo.toml; then
+            echo "Version does not match Cargo.toml" >&2
+            exit 1
+          fi
+      - name: Create Github release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create $VERSION --draft --verify-tag --title $VERSION
+    outputs:
+      version: ${{ env.VERSION }}
+
+  build-release:
+    name: build-release
+    needs: ['create-release']
+    runs-on: ${{ matrix.os }}
+    env:
+      CARGO: cargo
+      TARGET_FLAGS:
+      TARGET_DIR: ./target
+      RUST_BACKTRACE: 1
+      PCRE2_SYS_STATIC: 1
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - build: win-msvc
+          os: windows-latest
+          rust: stable
+          target: x86_64-pc-windows-msvc
+        - build: win-gnu
+          os: window-latest
+          rust: stable
+          target: x86_64_pc-windows-gnu
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ matrix.rust }}
+        target: ${{ matrix.target }}
+    - name: Set target variables
+      shell: bash
+      run: |
+        echo "TARGET_FLAGS=--target ${{ matrix.target }}" >> $GITHUB_ENV
+        echo "TARGET_DIR=./target/${{ matrix.target }}" >> $GITHUB_ENV
+    - name: Show command used for cargo
+      shell: bash
+      run: |
+        echo "cargo command is ${{ env.CARGO }}"
+        echo "target flag is ${{ env.TARGET_FLAGS }}"
+        echo "target dir is ${{ env.TARGET_DIR }}"
+    - name: Build release
+      shell: bash
+      run: |
+        ${{ env.CARGO }} build --verbose --release ${{ env.TARGET_FLAGS }}
+        bin="target/${{ matrix.target }}/release/grout-wm.exe"
+        echo "BIN=$bin" >> $GITHUB_ENV
+    - name: Determine archive name
+      shell: bash
+      run: |
+        version="${{ needs.create-release.outputs.version }}"
+        echo "ARCHIVE=grout-wm-$version-${{ matrix.target }}" >> $GITHUB_ENV
+    - name: Create directory for archive
+      shell: bash
+      run: |
+        mkdir "$ARCHIVE"
+        cp "$BIN" "$ARCHIVE"/
+        cp {README.md, default.yaml, user.yaml} "$ARCHIVE"/
+    - name: Build archinve
+      shell: bash
+      run: |
+        7z a "$ARCHIVE.zip" "$ARCHIVE"
+        cerutil -hashfile "$ARCHIVE.zip" SHA256 > "$ARCHIVE.zip.sha256"
+        echo "ASSET=$ARCHIVE.zip" >> $GITHUB_ENV
+        echo "ASSET_SUM=$ARCHIVE.zip.sha256" >> $GITHUB_ENV
+    - name: Upload release archive
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      shell: bash
+      run: |
+        version="${{ needs.create-release.outputs.version }}"
+        gh release upload "$version" ${{ env.ASSET }} ${{ env.ASSET_SUM }}
+        
+      
