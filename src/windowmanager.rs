@@ -4,8 +4,8 @@ use log::{debug, error, info};
 use windows::Win32::{
     Foundation::{BOOL, HWND, LPARAM, LRESULT, RECT, TRUE, WPARAM},
     UI::WindowsAndMessaging::{
-        GW_OWNER, HSHELL_WINDOWCREATED, HSHELL_WINDOWDESTROYED, WM_COMMAND, WM_DISPLAYCHANGE,
-        WM_USER, WS_CHILD, WS_DISABLED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+        GW_OWNER, HSHELL_WINDOWACTIVATED, HSHELL_WINDOWCREATED, HSHELL_WINDOWDESTROYED, WM_COMMAND,
+        WM_DISPLAYCHANGE, WM_USER, WS_CHILD, WS_DISABLED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
     },
 };
 
@@ -234,6 +234,13 @@ impl WindowManager {
                 if managed_window.is_some() {
                     debug!("{handle:?} is destroyed");
                     self.unmanage(handle);
+                    self.arrange();
+                }
+            }
+            (id, HSHELL_WINDOWACTIVATED) if id == *shell_hook_id => {
+                if managed_window.is_none() && self.is_manageable(handle) {
+                    info!("Activated window that is not managed");
+                    self.manage(handle);
                     self.arrange();
                 }
             }
