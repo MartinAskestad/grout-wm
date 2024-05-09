@@ -15,14 +15,14 @@ macro_rules! has_flag {
 #[macro_export]
 macro_rules! LOWORD {
     ($w:expr) => {
-        $w & 0xFFFF
+        $w & 0x7FFF
     };
 }
 
 #[macro_export]
 macro_rules! HIWORD {
     ($w:expr) => {
-        ($w >> 16) & 0xFFFF
+        ($w >> 16) & 0x7FFF
     };
 }
 
