@@ -1,5 +1,5 @@
 use windows::{
-    w,
+    core::w,
     Win32::{
         Foundation::{ERROR_FILE_NOT_FOUND, ERROR_SUCCESS},
         System::Registry::{RegGetValueW, HKEY_CURRENT_USER, REG_VALUE_TYPE, RRF_RT_REG_DWORD},
