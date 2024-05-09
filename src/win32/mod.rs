@@ -1,4 +1,4 @@
-use log::{error};
+use log::error;
 use std::{
     ffi::c_void,
     mem::{size_of, zeroed},
