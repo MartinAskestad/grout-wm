@@ -4,8 +4,8 @@ use log::{debug, error, info};
 use windows::Win32::{
     Foundation::{BOOL, HWND, LPARAM, LRESULT, RECT, TRUE, WPARAM},
     UI::WindowsAndMessaging::{
-        GW_OWNER, HSHELL_WINDOWCREATED, HSHELL_WINDOWDESTROYED, WM_COMMAND, WM_DISPLAYCHANGE,
-        WM_USER, WS_CHILD, WS_DISABLED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+        GW_OWNER, HSHELL_WINDOWACTIVATED, HSHELL_WINDOWCREATED, HSHELL_WINDOWDESTROYED, WM_COMMAND,
+        WM_DISPLAYCHANGE, WM_USER, WS_CHILD, WS_DISABLED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
     },
 };
 
@@ -224,6 +224,7 @@ impl WindowManager {
                 }
             }
             (id, HSHELL_WINDOWCREATED) if id == *shell_hook_id => {
+                debug!("{handle:?} is created");
                 if managed_window.is_none() && self.is_manageable(handle) {
                     debug!("{handle:?} is created");
                     self.manage(handle);
@@ -231,11 +232,20 @@ impl WindowManager {
                 }
             }
             (id, HSHELL_WINDOWDESTROYED) if id == *shell_hook_id => {
+                debug!("{handle:?} is destroyed");
                 if managed_window.is_some() {
                     debug!("{handle:?} is destroyed");
                     self.unmanage(handle);
                     self.arrange();
                 }
+            }
+            (id, HSHELL_WINDOWACTIVATED) if id == *shell_hook_id => {
+                debug!("{handle:?} is activated");
+                if managed_window.is_none() && self.is_manageable(handle) {
+                    info!("Activate {handle:?}");
+                    self.manage(handle);
+                }
+                self.arrange();
             }
             _ => return win32::def_window_proc(hwnd, msg, wparam, lparam),
         }
