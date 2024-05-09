@@ -142,8 +142,13 @@ impl WindowManager {
             .collect();
         let number_of_windows = windows_on_screen.len();
         let ds = self.layout.arrange(self.working_area, number_of_windows);
-        for (w, d) in windows_on_screen.iter().zip(ds.iter()) {
-            win32::set_window_pos(w.0, *d);
+        if let Ok(mut hdwp) = win32::begin_defer_window_pos(number_of_windows) {
+            for (w, d) in windows_on_screen.iter().zip(ds.iter()) {
+                if let Ok(res) = win32::defer_window_pos(hdwp, w.0, *d) {
+                    hdwp = res;
+                }
+            }
+            win32::end_defer_window_pos(hdwp);
         }
         let _ = win32::dwm::invalidate_iconic_bitmaps(self.hwnd);
     }

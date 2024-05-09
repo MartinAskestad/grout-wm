@@ -4,7 +4,6 @@ use std::{
     path::PathBuf,
 };
 
-use log::debug;
 use windows::{
     core::PCWSTR,
     w,
@@ -27,14 +26,14 @@ use windows::{
             Accessibility::{SetWinEventHook, HWINEVENTHOOK, WINEVENTPROC},
             Shell::{FOLDERID_LocalAppData, SHGetKnownFolderPath, KF_FLAG_DEFAULT},
             WindowsAndMessaging::{
-                DefWindowProcW, EnumWindows, FindWindowW, GetClassNameW, GetCursorPos,
-                GetSystemMetrics, GetWindow, GetWindowLongPtrW, GetWindowTextLengthW,
-                GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindowVisible, LoadIconW,
-                PostMessageW, PostQuitMessage, RegisterClassW, RegisterShellHookWindow,
-                RegisterWindowMessageW, SetWindowLongPtrW, SetWindowPos, ShowWindow,
-                SystemParametersInfoW, GET_WINDOW_CMD, GWL_EXSTYLE, GWL_STYLE, HICON, HWND_TOP,
-                SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
-                SPI_GETWORKAREA, SWP_NOACTIVATE, SW_SHOWMINNOACTIVE,
+                BeginDeferWindowPos, DefWindowProcW, DeferWindowPos, EndDeferWindowPos,
+                EnumWindows, FindWindowW, GetClassNameW, GetCursorPos, GetSystemMetrics, GetWindow,
+                GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
+                IsIconic, IsWindowVisible, LoadIconW, PostMessageW, PostQuitMessage,
+                RegisterClassW, RegisterShellHookWindow, RegisterWindowMessageW, SetWindowLongPtrW,
+                ShowWindow, SystemParametersInfoW, GET_WINDOW_CMD, GWL_EXSTYLE, GWL_STYLE, HDWP,
+                HICON, HWND_TOP, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
+                SM_YVIRTUALSCREEN, SPI_GETWORKAREA, SWP_NOACTIVATE, SW_SHOWMINNOACTIVE,
                 SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, WINDOW_LONG_PTR_INDEX, WINEVENT_OUTOFCONTEXT,
                 WNDCLASSW, WNDENUMPROC,
             },
@@ -49,6 +48,31 @@ pub(crate) mod dwm;
 pub(crate) mod taskbar;
 pub(crate) mod theme;
 pub(crate) mod virtualdesktop;
+
+pub fn begin_defer_window_pos(num_windows: usize) -> Result<HDWP> {
+    Ok(unsafe { BeginDeferWindowPos(num_windows as i32)? })
+}
+
+pub fn defer_window_pos(hdwp: HDWP, hwnd: HWND, rect: RECT) -> Result<HDWP> {
+    let margin = dwm::get_window_extended_frame_bounds(hwnd); // Should be: (left: 7, top: 0, right: -7, bottom: -7)
+    let res = unsafe {
+        DeferWindowPos(
+            hdwp,
+            hwnd,
+            HWND_TOP,
+            rect.left - margin.left,
+            rect.top - margin.top,
+            (rect.right - rect.left) + margin.left * 2,
+            (rect.bottom - rect.top) - margin.bottom,
+            SWP_NOACTIVATE,
+        )?
+    };
+    Ok(res)
+}
+
+pub fn end_defer_window_pos(hdwp: HDWP) {
+    unsafe { EndDeferWindowPos(hdwp) };
+}
 
 pub fn is_iconic(hwnd: HWND) -> bool {
     unsafe { IsIconic(hwnd).into() }
@@ -98,22 +122,6 @@ pub fn get_working_area() -> Result<RECT> {
             right: unsafe { GetSystemMetrics(SM_CXVIRTUALSCREEN) },
             bottom: unsafe { GetSystemMetrics(SM_CYVIRTUALSCREEN) },
         })
-    }
-}
-
-pub fn set_window_pos(hwnd: HWND, r: RECT) {
-    let margin = dwm::get_window_extended_frame_bounds(hwnd); // should be: { left: 7, top: 0, right:-7, bottom -7 }
-    debug!("{margin:?}");
-    unsafe {
-        SetWindowPos(
-            hwnd,
-            HWND_TOP,
-            r.left - margin.left,
-            r.top - margin.top,
-            (r.right - r.left) - margin.right * 2,
-            (r.bottom - r.top) - margin.bottom,
-            SWP_NOACTIVATE,
-        );
     }
 }
 
