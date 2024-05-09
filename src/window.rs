@@ -1,8 +1,7 @@
-use core::fmt;
-
-use windows::Win32::Foundation::HWND;
-
 use crate::win32;
+use core::fmt;
+use log::error;
+use windows::Win32::Foundation::HWND;
 
 #[derive(Clone, Copy)]
 pub struct Window(pub HWND);
@@ -38,8 +37,10 @@ impl Window {
 
     pub fn position(&self) -> windows::Win32::Foundation::RECT {
         let mut rect: windows::Win32::Foundation::RECT = unsafe { std::mem::zeroed() };
-        unsafe {
-            windows::Win32::UI::WindowsAndMessaging::GetWindowRect(self.0, &mut rect);
+        let res =
+            unsafe { windows::Win32::UI::WindowsAndMessaging::GetWindowRect(self.0, &mut rect) };
+        if res.is_err() {
+            error!("GetWindowRect failed: {:?}", res);
         }
         rect
     }

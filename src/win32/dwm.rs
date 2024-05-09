@@ -14,7 +14,7 @@ pub fn get_window_extended_frame_bounds(hwnd: HWND) -> RECT {
     let mut rect: RECT = unsafe { zeroed() };
     let mut frame: RECT = unsafe { zeroed() };
     unsafe {
-        GetWindowRect(hwnd, &mut rect);
+        let _ = GetWindowRect(hwnd, &mut rect);
         let _ = DwmGetWindowAttribute(
             hwnd,
             DWMWA_EXTENDED_FRAME_BOUNDS,

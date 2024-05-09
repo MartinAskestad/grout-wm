@@ -5,9 +5,9 @@ use std::{
 
 use log::{debug, error, info};
 use windows::{
-    w,
+    core::w,
     Win32::{
-        Foundation::{HWND, LPARAM, LRESULT, WPARAM},
+        Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, WPARAM},
         Graphics::{
             Dwm::{DWMWA_FORCE_ICONIC_REPRESENTATION, DWMWA_HAS_ICONIC_BITMAP},
             Gdi::{BITMAPINFO, BITMAPINFOHEADER, COLOR_WINDOW, HBRUSH},
@@ -51,12 +51,12 @@ pub struct AppWindow {
 
 impl AppWindow {
     pub fn new_window(wm: &mut WindowManager) -> Result<Self> {
-        let instance = get_module_handle()?;
+        let instance: HINSTANCE = get_module_handle()?.into();
         let window_class = w!("grout-wm.window");
         let wc = WNDCLASSW {
             hInstance: instance,
             lpszClassName: window_class,
-            hIcon: load_icon(instance, w!("appicon"))?,
+            hIcon: load_icon(instance.into(), w!("appicon"))?,
             hbrBackground: HBRUSH((COLOR_WINDOW.0 + 1) as isize),
             lpfnWndProc: Some(Self::wnd_proc),
             ..Default::default()
@@ -258,7 +258,7 @@ impl AppWindow {
                 _ => event,
             };
             if msg >= WM_USER || msg < WM_APP {
-                win32::post_message(my_hwnd, msg, WPARAM(0), LPARAM(hwnd.0));
+                let _ = win32::post_message(my_hwnd, msg, WPARAM(0), LPARAM(hwnd.0));
             }
         }
     }

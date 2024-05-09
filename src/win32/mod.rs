@@ -1,3 +1,4 @@
+use log::{error};
 use std::{
     ffi::c_void,
     mem::{size_of, zeroed},
@@ -5,12 +6,11 @@ use std::{
 };
 
 use windows::{
-    core::PCWSTR,
-    w,
+    core::{w, PCWSTR},
     Win32::{
         Foundation::{
-            CloseHandle, GetLastError, BOOL, ERROR_ALREADY_EXISTS, FALSE, HANDLE, HMODULE, HWND,
-            LPARAM, LRESULT, MAX_PATH, POINT, RECT, TRUE, WPARAM,
+            CloseHandle, GetLastError, ERROR_ALREADY_EXISTS, FALSE, HANDLE, HMODULE, HWND, LPARAM,
+            LRESULT, MAX_PATH, POINT, RECT, TRUE, WPARAM,
         },
         Graphics::Gdi::PtInRect,
         System::{
@@ -71,7 +71,10 @@ pub fn defer_window_pos(hdwp: HDWP, hwnd: HWND, rect: RECT) -> Result<HDWP> {
 }
 
 pub fn end_defer_window_pos(hdwp: HDWP) {
-    unsafe { EndDeferWindowPos(hdwp) };
+    let res = unsafe { EndDeferWindowPos(hdwp) };
+    if res.is_err() {
+        error!("EndDeferWindowPos failed: {:?}", res);
+    }
 }
 
 pub fn is_iconic(hwnd: HWND) -> bool {
@@ -111,7 +114,7 @@ pub fn get_working_area() -> Result<RECT> {
                 SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0),
             )
         };
-        if res == FALSE {
+        if res.is_err() {
             return Err("".into());
         }
         Ok(wa)
@@ -160,7 +163,7 @@ pub fn show_window(hwnd: HWND) -> bool {
 }
 
 pub fn enum_windows(cb: WNDENUMPROC, param: LPARAM) -> bool {
-    unsafe { EnumWindows(cb, param).into() }
+    unsafe { EnumWindows(cb, param).is_ok() }
 }
 
 pub fn get_window_text(hwnd: HWND) -> String {
@@ -192,7 +195,8 @@ pub fn get_exe_filename(hwnd: HWND) -> Option<String> {
                 module_handles.as_mut_ptr(),
                 (module_handles.len() * size_of::<HMODULE>()) as u32,
                 &mut module_handles_size,
-            ) == FALSE
+            )
+            .is_err()
             {
                 return None;
             }
@@ -203,7 +207,8 @@ pub fn get_exe_filename(hwnd: HWND) -> Option<String> {
                 module_handle,
                 &mut module_info,
                 size_of::<MODULEINFO>().try_into().unwrap(),
-            ) == FALSE
+            )
+            .is_err()
             {
                 return None;
             }
@@ -213,7 +218,10 @@ pub fn get_exe_filename(hwnd: HWND) -> Option<String> {
             if base_name_length == 0 {
                 return None;
             }
-            CloseHandle(process_handle);
+            let res = CloseHandle(process_handle);
+            if res.is_err() {
+                error!("Failed to close process handle: {}", res.unwrap_err());
+            }
             Some(String::from_utf16_lossy(
                 &module_base_name[..base_name_length as usize],
             ))
@@ -231,8 +239,9 @@ pub fn post_quit_message(msg: i32) {
     unsafe { PostQuitMessage(msg) }
 }
 
-pub fn post_message(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> BOOL {
-    unsafe { PostMessageW(hwnd, msg, wparam, lparam) }
+pub fn post_message(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> Result<()> {
+    unsafe { PostMessageW(hwnd, msg, wparam, lparam).unwrap() };
+    Ok(())
 }
 
 pub fn get_mutex() -> Result<HANDLE> {
@@ -246,9 +255,13 @@ pub fn get_mutex() -> Result<HANDLE> {
 }
 
 pub fn release_mutex(handle: HANDLE) {
-    unsafe {
-        ReleaseMutex(handle);
-        CloseHandle(handle);
+    let mutex_res = unsafe { ReleaseMutex(handle) };
+    if mutex_res.is_err() {
+        error!("ReleaseMutex failed: {:?}", mutex_res);
+    }
+    let handle_res = unsafe { CloseHandle(handle) };
+    if handle_res.is_err() {
+        error!("CloseHandle failed: {:?}", handle_res);
     }
 }
 
@@ -271,8 +284,9 @@ pub fn get_local_appdata_path() -> Result<PathBuf> {
 
 pub fn get_cursor_pos() -> POINT {
     let mut p: POINT = unsafe { zeroed() };
-    unsafe {
-        GetCursorPos(&mut p);
+    let res = unsafe { GetCursorPos(&mut p) };
+    if res.is_err() {
+        error!("GetCursorPos failed: {:?}", res);
     }
     p
 }

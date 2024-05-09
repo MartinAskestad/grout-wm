@@ -7,7 +7,7 @@ impl Win32Com {
         use windows::Win32::System::Com::CoInitialize;
         info!("Initialize COM");
         unsafe {
-            CoInitialize(None)?;
+            let _ = CoInitialize(None);
         }
         Ok(Win32Com)
     }
